@@ -1,7 +1,7 @@
 all: main
 
 main:
-	gcc -Wall -o parsing parsing.c -lm
+	gcc -Wall -o processing processing.c -lm
 
 clean:
-	rm parsing.exe
+	rm processing processing.exe

@@ -6,7 +6,7 @@
  */
 
 
-include <stdio.h>
+#include <stdio.h>
 #include <wchar.h>
 #include <dirent.h>
 #include <string.h>
