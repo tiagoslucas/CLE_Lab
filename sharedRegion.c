@@ -24,12 +24,16 @@
 #include <errno.h>
 
 #include "probConst.h"
+#include "controlInfo.h"
 
 /** \brief producer threads return status array */
 extern int statusWorkers[NUMB_THREADS];
 
 /** \brief names of files to process */
 const char* filesToProcess;
+
+/** \brief names of files to process */
+controlInfo results[];
 
 /** \brief number of files to process */
 unsigned int numbFiles;
@@ -67,7 +71,7 @@ void initialization (void)
  *  \param size number of text files to be processed
  */
 
-void presentDataFileNames(char* listOfFiles, unsigned int size){
+void presentDataFileNames(char *listOfFiles[], unsigned int size){
   
   int i;
   numbFiles = size;
@@ -89,9 +93,9 @@ void presentDataFileNames(char* listOfFiles, unsigned int size){
  *  \param val value to be stored
  */
 
-bool getAPieceOfData (unsigned int workerId, char *dataToBeProcessed, controlInfo)
+bool getAPieceOfData (unsigned int workerId, char dataToBeProcessed[], controlInfo *ci)
 {
-  bool hasData = false;
+  bool hasData = true;
   if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
      { errno = statusWorkers[workerId];                                                            /* save error in errno */
        perror ("error on entering monitor(CF)");
@@ -100,22 +104,27 @@ bool getAPieceOfData (unsigned int workerId, char *dataToBeProcessed, controlInf
      }
   pthread_once (&init, initialization);                                              /* internal data initialization */
 
-  mem[filePointer] = val;                                                                          /* store value in the FIFO */
-  filfilePointer = (filePointer + 1) % K;
-
+  int i;
   file = fopen(files[filePointer], "rb");
+
 
   if(bytePointer != 0){
     fseek(file, bytePointer, SEEK_SET);
   }
 
-  if(fread(dataToBeProcessed, K, 1, file) < K) {
+  if(i = fread(&dataToBeProcessed, K, 1, file) < K) {
     filePointer++;
     bytePointer = 0;
   }
   else
     bytePointer += K;
 
+  while(!isValidStopCharacter(i, dataToBeProcessed)){
+    i--;
+  }
+
+  if(filePointer == numbFiles - 1 )
+    hasData = false;
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                  /* exit monitor */
      { errno = statusWorkers[workerId];                                                            /* save error in errno */
@@ -136,7 +145,7 @@ return hasData;
  *  \return value
  */
 
-void getVal (unsigned int workerId, controlInfo)
+void savePartialResults (unsigned int workerId, controlInfo *ci)
 {
   unsigned int val;                                                                               /* retrieved value */
 
@@ -159,4 +168,10 @@ void getVal (unsigned int workerId, controlInfo)
      }
 
   return val;
+}
+
+
+
+bool isValidStopCharacter(unsigned int i, char* dataToBeProcessed){
+
 }
