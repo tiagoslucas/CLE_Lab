@@ -35,10 +35,10 @@ const char* filesToProcess;
 unsigned int numbFiles;
 
 /** \brief file pointer */
-unsigned int fileId;
+unsigned int filePointer;
 
 /** \brief byte pointer inside file */
-unsigned int byte;
+unsigned int bytePointer;
 
 /** \brief locking flag which warrants mutual exclusion inside the monitor */
 pthread_mutex_t accessCR = PTHREAD_MUTEX_INITIALIZER;
@@ -54,7 +54,7 @@ pthread_once_t init = PTHREAD_ONCE_INIT;
 
 void initialization (void)
 {
-  fileId = byte = 0;                                        /* shared region filepointer and byte pointer are both 0 */
+  filePointer = bytePointer = 0;                                        /* shared region filepointer and byte pointer are both 0 */
 }
 
 
@@ -100,8 +100,21 @@ bool getAPieceOfData (unsigned int workerId, char *dataToBeProcessed, controlInf
      }
   pthread_once (&init, initialization);                                              /* internal data initialization */
 
-  mem[fileId] = val;                                                                          /* store value in the FIFO */
-  fileId = (fileId + 1) % K;
+  mem[filePointer] = val;                                                                          /* store value in the FIFO */
+  filfilePointer = (filePointer + 1) % K;
+
+  file = fopen(files[filePointer], "rb");
+
+  if(bytePointer != 0){
+    fseek(file, bytePointer, SEEK_SET);
+  }
+
+  if(fread(dataToBeProcessed, K, 1, file) < K) {
+    filePointer++;
+    bytePointer = 0;
+  }
+  else
+    bytePointer += K;
 
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                  /* exit monitor */
