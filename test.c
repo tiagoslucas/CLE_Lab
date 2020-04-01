@@ -11,148 +11,17 @@
 using namespace std;
 
 #include "probConst.h"
+#include "sharedRegion.h"
+
 
 /** \brief producer life cycle routine */
-static void *producer (void *id);
+static void *processText (void *id);
 
 
 /** \brief worker threads return status array */
 int statusWorker[NUMB_THREADS];
 
-
-/**
- *  \brief Main thread.
- *
- *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
- */
-
-int main (int argc, char** argv) {
-
-   if(argc < 2)
-   {
-      cout >> "Please insert text files to be processed as arguments!";
-      exit(EXIT_FAILURE);
-   }
-
-   else
-   {
-      double t0, t1;
-      int rc, i;
-      
-      unsigned int worker_threads[NUMB_THREADS];
-      pthread_t threads_id[NUMB_THREADS];
-
-
-      for (i = 0; i < NUMB_THREADS; i++)
-         worker_threads[i] = i;
-
-      t0 = ((double) clock ()) / CLOCKS_PER_SEC;
-      presentDataFileNames(argv + 1, argc--);
-
-      srandom ((unsigned int) getpid ());
-
-      for (i = 0; i < NUMB_THREADS; i++)
-         if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0)                              /* thread producer */
-         { 
-            perror ("error on creating worker threads");
-            exit (EXIT_FAILURE);
-         }
-      pthread_exit(NULL);
-      
-      printf ("\nFinal report\n");
-      for (i = 0; i < NUMB_THREADS; i++)
-      { 
-      
-      }
-      t1 = ((double) clock ()) / CLOCKS_PER_SEC;
-      printf ("\nElapsed time = %.6f s\n", t1 - t0);
-      exit (EXIT_SUCCESS);
-   }
-   
-}
-
-void *processText(void *threadId) {
-
-   unsigned int id = *((unsigned int *) threadId);
-   char* dataToBeProcessed[K];
-
-   
-   while (getAPieceOfData (threadId, &dataToBeProcessed, controlInfo))
-   { 
-      /* realizar o seu processamento */process(dataToBeProcessed);
-      savePartialResults (threadId, controlInfo);
-   }
-
-   statusWorker[id] = EXIT_SUCCESS;
-   pthread_exit (&statusWorker[id]);
-
-}
-
-
-void process(wint_t[] dataToBeProcessed, unsigned int size){
-
-   char *locale = setlocale(LC_ALL, "");
-
-   size_t wordlength = 0;
-   size_t maxwordlength = 0;
-   size_t vowels[5] = { 0 };
-   size_t *wordlengths = (size_t *) malloc(maxwordlength * sizeof(size_t));
-   
-   int i;
-
-   for(i = 0; i < size; i++)
-   //while ((character = getwc(file)) != WEOF)
-   {
-      character = validchar(character);
-
-      switch (character)
-      {
-         case L'a':
-         case L'A':
-            ++vowels[0];
-            break;
-         case L'e':
-         case L'E':
-            ++vowels[1];
-            break;
-         case L'i':
-         case L'I':
-            ++vowels[2];
-            break;
-         case L'o':
-         case L'O':
-            ++vowels[3];
-            break;
-         case L'u':
-         case L'U':
-            ++vowels[4];
-            break;
-         default:
-            break;
-      }
-
-      if (character >= L'A' && character <= L'Z' || character >= L'a' && character <= L'z')
-         ++wordlength;
-      else if (wordlength)
-      {
-         if (wordlength > maxwordlength)
-            wordlengths = (size_t *) realloc(wordlengths, (maxwordlength = wordlength) * sizeof(size_t));
-            ++wordlengths[wordlength - 1];
-            wordlength = 0;
-         }
-   }
-
-   if (wordlength)
-   {
-      if (wordlength > maxwordlength)
-         wordlengths = (size_t *) realloc(wordlengths, (maxwordlength = wordlength) * sizeof(size_t));
-      
-      ++wordlengths[wordlength - 1];
-      wordlength = 0;
-   }
-}
-
-wint_t validchar(wint_t character){
+wint_t validChar(wint_t character){
    switch (character)
    {
       case L'á':
@@ -211,7 +80,140 @@ wint_t validchar(wint_t character){
 }
 
 
+void process(wint_t* dataToBeProcessed, unsigned int size){
+
+   char *locale = setlocale(LC_ALL, "");
+
+   size_t wordlength = 0;
+   size_t maxwordlength = 0;
+   size_t vowels[5] = { 0 };
+   size_t *wordlengths = (size_t *) malloc(maxwordlength * sizeof(size_t));
+   
+   int i;
+
+   for(i = 0; i < size; i++)
+   //while ((character = getwc(file)) != WEOF)
+   {
+      wint_t character = dataToBeProcessed[i];
+      character = validChar(character);
+
+      switch (character)
+      {
+         case L'a':
+         case L'A':
+            ++vowels[0];
+            break;
+         case L'e':
+         case L'E':
+            ++vowels[1];
+            break;
+         case L'i':
+         case L'I':
+            ++vowels[2];
+            break;
+         case L'o':
+         case L'O':
+            ++vowels[3];
+            break;
+         case L'u':
+         case L'U':
+            ++vowels[4];
+            break;
+         default:
+            break;
+      }
+
+      if (character >= L'A' && character <= L'Z' || character >= L'a' && character <= L'z')
+         ++wordlength;
+      else if (wordlength)
+      {
+         if (wordlength > maxwordlength)
+            wordlengths = (size_t *) realloc(wordlengths, (maxwordlength = wordlength) * sizeof(size_t));
+            ++wordlengths[wordlength - 1];
+            wordlength = 0;
+         }
+   }
+
+   if (wordlength)
+   {
+      if (wordlength > maxwordlength)
+         wordlengths = (size_t *) realloc(wordlengths, (maxwordlength = wordlength) * sizeof(size_t));
+      
+      ++wordlengths[wordlength - 1];
+      wordlength = 0;
+   }
+}
+
+
 void printResults(){
+}
+
+
+/**
+ *  \brief Main thread.
+ *
+ *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
+ */
+
+int main (int argc, char** argv) {
+
+   if(argc < 2)
+   {
+      printf("Please insert text files to be processed as arguments!");
+      exit(EXIT_FAILURE);
+   }
+
+   else
+   {
+      double t0, t1;
+      int rc, i;
+      
+      unsigned int worker_threads[NUMB_THREADS];
+      pthread_t threads_id[NUMB_THREADS];
+
+
+      for (i = 0; i < NUMB_THREADS; i++)
+         worker_threads[i] = i;
+
+      t0 = ((double) clock ()) / CLOCKS_PER_SEC;
+      presentDataFileNames(argv + 1, argc--);
+
+      //srandom ((unsigned int) getpid());
+
+      for (i = 0; i < NUMB_THREADS; i++)
+         if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0)                              /* thread producer */
+         { 
+            perror ("error on creating worker threads");
+            exit (EXIT_FAILURE);
+         }
+      pthread_exit(NULL);
+      
+      printf ("\nFinal report\n");
+      for (i = 0; i < NUMB_THREADS; i++)
+      { 
+      
+      }
+      t1 = ((double) clock ()) / CLOCKS_PER_SEC;
+      printf ("\nElapsed time = %.6f s\n", t1 - t0);
+      exit (EXIT_SUCCESS);
+   }
+   
+}
+
+static void *processText(void *threadId) {
+
+   unsigned int id = *((unsigned int *) threadId);
+   char dataToBeProcessed[K];
+   controlInfo ci = {};
+   
+   while (getAPieceOfData (id, dataToBeProcessed, &ci))
+   { 
+      /* realizar o seu processamento process(dataToBeProcessed);*/
+      savePartialResults (id, ci);
+   }
+
+   statusWorker[id] = EXIT_SUCCESS;
+   pthread_exit (&statusWorker[id]);
 
 }
 
