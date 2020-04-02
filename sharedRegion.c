@@ -30,10 +30,10 @@
 extern int statusWorkers[NUMB_THREADS];
 
 /** \brief names of files to process */
-const char* filesToProcess;
+char **filesToProcess;
 
-/** \brief names of files to process */
-controlInfo results[];
+/** \brief results of processed text */
+controlInfo* results;
 
 /** \brief number of files to process */
 unsigned int numbFiles;
@@ -50,6 +50,8 @@ pthread_mutex_t accessCR = PTHREAD_MUTEX_INITIALIZER;
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
 
+bool isValidStopCharacter(unsigned int, char*);
+
 /**
  *  \brief Initialization of the shared region.
  *
@@ -58,6 +60,12 @@ pthread_once_t init = PTHREAD_ONCE_INIT;
 
 void initialization (void)
 {
+  controlInfo aux = (controlInfo) {0, 0, 0, {0}};
+  int i;
+  results = (controlInfo*)malloc(sizeof(controlInfo)*numbFiles);
+  for(i = 0; i < numbFiles; i++)
+    results[i] = aux;
+
   filePointer = bytePointer = 0;                                        /* shared region filepointer and byte pointer are both 0 */
 }
 
@@ -73,13 +81,8 @@ void initialization (void)
 
 void presentDataFileNames(char *listOfFiles[], unsigned int size){
   
-  int i;
   numbFiles = size;
-
-  for(i = 0; i < size; i++){
-    filesToProcess = malloc(strlen(listOfFiles[i]) + 1);
-    strcpy(filesToProcess,listOfFiles[i]);
-  }
+  filesToProcess = listOfFiles;
 
 }
 
@@ -93,45 +96,55 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
  *  \param val value to be stored
  */
 
-bool getAPieceOfData (unsigned int workerId, char dataToBeProcessed[], controlInfo *ci)
+bool getAPieceOfData(unsigned int workerId, char dataToBeProcessed[], controlInfo *ci)
 {
   bool hasData = true;
   if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
-     { errno = statusWorkers[workerId];                                                            /* save error in errno */
-       perror ("error on entering monitor(CF)");
-       statusWorkers[workerId] = EXIT_FAILURE;
-       pthread_exit (&statusWorkers[workerId]);
-     }
+  { 
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    perror ("error on entering monitor(CF)");
+    statusWorkers[workerId] = EXIT_FAILURE;
+    pthread_exit (&statusWorkers[workerId]);
+  }
   pthread_once (&init, initialization);                                              /* internal data initialization */
 
-  int i;
-  file = fopen(files[filePointer], "rb");
+  int i, aux;
+  FILE * fp;
+  fp = fopen(filesToProcess[filePointer], "r");
+  ci->filePointer = filePointer;
+  ci->bidi = {0};
+  ci->numbWords = 0;
 
-
-  if(bytePointer != 0){
-    fseek(file, bytePointer, SEEK_SET);
-  }
-
-  if(i = fread(&dataToBeProcessed, K, 1, file) < K) {
+  if(bytePointer != 0)
+    fseek(fp, bytePointer, SEEK_SET);
+  
+  if((i = fread(&dataToBeProcessed, 1, K, fp)) < K) {
     filePointer++;
     bytePointer = 0;
   }
   else
-    bytePointer += K;
-
-  while(!isValidStopCharacter(i, dataToBeProcessed)){
-    i--;
+  {
+    aux = i;
+    while(!isValidStopCharacter(dataToBeProcessed[i-1]) && i > 0){
+      i--;
+    }
+    if(i == 0)
+      i = aux;
+    bytePointer += i;
   }
+  ci->numbBytes = i;
+  fclose(fp);
 
-  if(filePointer == numbFiles - 1 )
+  if(filePointer == (numbFiles - 1) )
     hasData = false;
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                  /* exit monitor */
-     { errno = statusWorkers[workerId];                                                            /* save error in errno */
-       perror ("error on exiting monitor(CF)");
-       statusWorkers[workerId] = EXIT_FAILURE;
-       pthread_exit (&statusWorkers[workerId]);
-     }
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                 /* exit monitor */
+  {
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    perror ("error on exiting monitor(CF)");
+    statusWorkers[workerId] = EXIT_FAILURE;
+    pthread_exit (&statusWorkers[workerId]);
+  }
 return hasData;   
 }
 
@@ -145,33 +158,63 @@ return hasData;
  *  \return value
  */
 
-void savePartialResults (unsigned int workerId, controlInfo *ci)
-{
-  unsigned int val;                                                                               /* retrieved value */
+void savePartialResults(unsigned int workerId, controlInfo ci)
+{                                                                          
 
   if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
-     { errno = statusWorkers[workerId];                                                            /* save error in errno */
-       perror ("error on entering monitor(CF)");
-       statusWorkers[workerId] = EXIT_FAILURE;
-       pthread_exit (&statusWorkers[workerId]);
-     }
+  { 
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    perror ("error on entering monitor(CF)");
+    statusWorkers[workerId] = EXIT_FAILURE;
+    pthread_exit (&statusWorkers[workerId]);
+  }
 
-  val = mem[ri];                                                                   /* retrieve a  value from the FIFO */
-  ri = (ri + 1) % K;
+  size_t filePosition = ci.filePointer;
+
+  controlInfo ciNew = results[filePosition];
+
+  ciNew->numbBytes += ci.numbBytes;
+  ciNew->numbWords += ci.numbWords;
+
+  //mudar o 50 para variável de tamanho máx de palavra
+  for (size_t i = 0; i < 50; i++){
+    for (size_t j = 0; j < 50; j++){
+     ciNew->bidi[i][j] += ci.bidi[i][j];
+    }
+  }
+
+  results[filePosition] = ciNew;
 
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                   /* exit monitor */
-     { errno = statusWorkers[workerId];                                                             /* save error in errno */
-       perror ("error on exiting monitor(CF)");
-       statusWorkers[workerId] = EXIT_FAILURE;
-       pthread_exit (&statusWorkers[workerId]);
-     }
+  { 
+    errno = statusWorkers[workerId];                                                             /* save error in errno */
+    perror ("error on exiting monitor(CF)");
+    statusWorkers[workerId] = EXIT_FAILURE;
+    pthread_exit (&statusWorkers[workerId]);
+  }
+}
 
-  return val;
+void presentResults(){
+
+  int i;
+  for (i = 0; i < numbFiles; i++){
+    printf("File name: %s\n", filesToProcess[i]);
+    printf("Total number of words: %s\n", results[i].numbWords);
+    printf("Word length\n");
+    
+  }
+  
+
+  free(results);
 }
 
 
 
-bool isValidStopCharacter(unsigned int i, char* dataToBeProcessed){
-
+bool isValidStopChar(char character) {
+    char separation[19] = { (char)0x20, (char)0x9, (char)0xA, '-', '"', '(', ')', '[', ']', '.', ',', ':', ';', '?', '!', (char)0x9C, (char)0x9D, (char)0x93, (char)0xA6 };
+    for (int x = 0; x < 15; x++)
+        if (character == separation[x])
+            return true;
+    return false;
 }
