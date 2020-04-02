@@ -1,7 +1,7 @@
 /**
  *  \file fifo.c (implementation file)
  *
- *  \brief Problem name: Problem 1.
+ *  \brief Problem name: Producers / Consumers.
  *
  *  Synchronization based on monitors.
  *  Both threads and the monitor are implemented using the pthread library which enables the creation of a
@@ -13,7 +13,7 @@
  *     \li putVal
  *     \li getVal.
  *
- *  \author Francisco Gonçalves and Tiago Lucas - March 2020
+ *  \author Francisco Gonçalves and Tiago Lucas - March 2019
  */
 
 #include <stdio.h>
@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <errno.h>
+#include <string.h>
 
 #include "probConst.h"
 #include "CONTROLINFO.h"
@@ -50,13 +51,14 @@ pthread_mutex_t accessCR = PTHREAD_MUTEX_INITIALIZER;
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
 
-bool isValidStopCharacter(unsigned int, char*);
+bool isValidStopCharacter(char);
 
 /**
  *  \brief Initialization of the shared region.
  *
  *  Internal monitor operation.
  */
+
 void initialization (void)
 {
   CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
@@ -65,7 +67,7 @@ void initialization (void)
   for(i = 0; i < numbFiles; i++)
     results[i] = aux;
 
-  filePointer = bytePointer = 0;
+  filePointer = bytePointer = 0;                                        /* shared region filepointer and byte pointer are both 0 */
 }
 
 
@@ -96,20 +98,19 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
 {
   bool hasData = true;
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
   { 
-    errno = statusWorkers[workerId];
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  pthread_once (&init, initialization);
+  pthread_once (&init, initialization);                                              /* internal data initialization */
 
   int i, aux;
   FILE * fp;
   fp = fopen(filesToProcess[filePointer], "r");
   ci->filePointer = filePointer;
-  ci->bidi = {0};
   ci->numbWords = 0;
 
   if(bytePointer != 0)
@@ -135,8 +136,9 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   if(filePointer == (numbFiles - 1) )
     hasData = false;
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0) {
-    errno = statusWorkers[workerId];
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                 /* exit monitor */
+  {
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
@@ -157,33 +159,34 @@ return hasData;
 void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 {                                                                          
 
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0) { 
-    errno = statusWorkers[workerId];
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
+  { 
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
 
-  size_t filePosition = ci.filePointer;
+  size_t filePosition = ci->filePointer;
 
   CONTROLINFO ciNew = results[filePosition];
 
-  ciNew->numbBytes += ci.numbBytes;
-  ciNew->numbWords += ci.numbWords;
+  ciNew.numbBytes += ci->numbBytes;
+  ciNew.numbWords += ci->numbWords;
 
   //mudar o 50 para variável de tamanho máx de palavra
   for (size_t i = 0; i < 50; i++){
     for (size_t j = 0; j < 50; j++){
-     ciNew->bidi[i][j] += ci.bidi[i][j];
+     ciNew.bidi[i][j] += ci->bidi[i][j];
     }
   }
 
   results[filePosition] = ciNew;
 
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                   /* exit monitor */
   { 
-    errno = statusWorkers[workerId];
+    errno = statusWorkers[workerId];                                                             /* save error in errno */
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
@@ -204,7 +207,7 @@ void printResults(){
   free(results);
 }
 
-bool isValidStopChar(char character) {
+bool isValidStopCharacter(char character) {
     char separation[19] = { (char)0x20, (char)0x9, (char)0xA, '-', '"', '(', ')', '[', ']', '.', ',', ':', ';', '?', '!', (char)0x9C, (char)0x9D, (char)0x93, (char)0xA6 };
     for (int x = 0; x < 15; x++)
         if (character == separation[x])
