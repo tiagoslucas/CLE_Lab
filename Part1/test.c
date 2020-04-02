@@ -14,9 +14,9 @@
 
 
 /** \brief workerThread life cycle routine */
-static void *processText (void *id, char dataToBeProccessed[], controlInfo *ci);
+static void *processText (void *id);
 
-void proccess(char*, CONTROLINFO*);
+void process(char*, CONTROLINFO*);
 
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
@@ -51,7 +51,7 @@ int main (int argc, char *argv[]) {
       t0 = ((double) clock ()) / CLOCKS_PER_SEC;
       presentDataFileNames(argv + 1, --argc);
 
-      srandom ((unsigned int) getpid());
+      //srandom ((unsigned int) getpid());
 
       for (i = 0; i < NUMB_THREADS; i++)
          if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0)                              /* thread producer */
@@ -79,7 +79,7 @@ static void *processText(void *threadId) {
    
    while (getAPieceOfData (id, dataToBeProcessed, &ci))
    { 
-      proccess(dataToBeProcessed, &ci);
+      process(dataToBeProcessed, &ci);
       savePartialResults (id, &ci);
    }
 
@@ -88,7 +88,7 @@ static void *processText(void *threadId) {
 
 }
 
-void proccess(char *dataToBeProccessed, CONTROLINFO *ci) {
+void process(char *dataToBeProccessed, CONTROLINFO *ci) {
     char cha;
     int counter = 0, size = 0, length = strlen(dataToBeProccessed);
 
@@ -126,7 +126,7 @@ void proccess(char *dataToBeProccessed, CONTROLINFO *ci) {
             size++;
         }
 
-        if (isValidStopChar(cha)) {
+        if (isValidStopCharacter(cha)) {
             ci->bidi[size - 1][counter]++;
             ci->numbWords++;
             counter = 0;
