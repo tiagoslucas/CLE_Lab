@@ -14,12 +14,10 @@
 /* Generic parameters */
 
 /** \brief number of worker Threads */
-#define  NUMB_THREADS          4
+#define  NUMB_THREADS          2
 
 /** \brief number of bytes to be processed each iteration */
-#define  K           100
-
-/** \brief maximum number of text files to process */
-#define  M          15
+#define  K           1024
 
 #endif /* PROBCONST_H_ */
+
