@@ -13,8 +13,10 @@
 #include "sharedRegion.h"
 
 
-/** \brief producer life cycle routine */
-static void *processText (void *id);
+/** \brief workerThread life cycle routine */
+static void *processText (void *id, char dataToBeProccessed[], controlInfo *ci);
+
+void proccess(char*, CONTROLINFO*);
 
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
@@ -75,9 +77,9 @@ static void *processText(void *threadId) {
    unsigned char dataToBeProcessed[K+1];
    CONTROLINFO ci = (CONTROLINFO) {0, 0, 0, {0}};
    
-   while (getAPieceOfData (id, &dataToBeProcessed, &ci))
+   while (getAPieceOfData (id, dataToBeProcessed, &ci))
    { 
-      proccess(dataToBeProcessed, &ci)
+      proccess(dataToBeProcessed, &ci);
       savePartialResults (id, &ci);
    }
 
@@ -86,7 +88,7 @@ static void *processText(void *threadId) {
 
 }
 
-void proccess(char dataToBeProccessed[], controlInfo *ci) {
+void proccess(char *dataToBeProccessed, CONTROLINFO *ci) {
     char cha;
     int counter = 0, size = 0, length = strlen(dataToBeProccessed);
 
