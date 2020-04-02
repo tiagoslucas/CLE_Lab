@@ -1,5 +1,5 @@
 /**
- *  \file sharedRegion.h (interface file)
+ *  \file sharedRegion.c (implementation file)
  *
  *  \brief Problem name: Problem 1.
  *
@@ -13,13 +13,13 @@
  *     \li putVal
  *     \li getVal.
  *
- *  \author Francisco Gonçalves and Tiago Lucas - March 2020
+ *  \author António Rui Borges - March 2019
  */
 
 #ifndef SHAREDREGION_H
 #define SHAREDREGION_H
 
-#include "controlInfo.h"
+#include "CONTROLINFO.h"
 #include <stdbool.h>
 /**
  *  \brief Store a value in the data transfer region.
@@ -33,7 +33,7 @@
 extern void presentDataFileNames(char *listOfFiles[], unsigned int size);
 
 
-extern bool getAPieceOfData(unsigned int workerId, char dataToBeProcessed[], controlInfo *ci);
+extern bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci);
 
 /**
  *  \brief Get a value from the data transfer region.
@@ -45,7 +45,7 @@ extern bool getAPieceOfData(unsigned int workerId, char dataToBeProcessed[], con
  *  \return value
  */
 
-extern void savePartialResults(unsigned int workerId, controlInfo ci);
+extern void savePartialResults(unsigned int workerId, CONTROLINFO *ci);
 
 /**
  *  \brief Print the results of each file.
@@ -54,8 +54,7 @@ extern void savePartialResults(unsigned int workerId, controlInfo ci);
  *
  */
 
-extern void presentResults();
-
-extern bool isValidStopChar(char character);
+extern void printResults(void);
 
 #endif /* SHAREDREGION_H */
+
