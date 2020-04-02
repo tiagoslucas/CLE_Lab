@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #ifndef CONTROLINFO_H
 #define CONTROLINFO_H
 
