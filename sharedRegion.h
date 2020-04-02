@@ -20,6 +20,7 @@
 #define SHAREDREGION_H
 
 #include "controlInfo.h"
+#include <stdbool.h>
 /**
  *  \brief Store a value in the data transfer region.
  *
@@ -32,7 +33,7 @@
 extern void presentDataFileNames(char *listOfFiles[], unsigned int size);
 
 
-extern bool getAPieceOfData (unsigned int workerId, char dataToBeProcessed[], controlInfo *ci);
+extern bool getAPieceOfData(unsigned int workerId, char dataToBeProcessed[], controlInfo *ci);
 
 /**
  *  \brief Get a value from the data transfer region.
@@ -44,6 +45,16 @@ extern bool getAPieceOfData (unsigned int workerId, char dataToBeProcessed[], co
  *  \return value
  */
 
-extern void savePartialResults (unsigned int workerId, controlInfo *ci);
+extern void savePartialResults(unsigned int workerId, controlInfo ci);
+
+/**
+ *  \brief Print the results of each file.
+ *
+ *  Operation carried out by main.
+ *
+ */
+
+extern void presentResults();
 
 #endif /* SHAREDREGION_H */
+
