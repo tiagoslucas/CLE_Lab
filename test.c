@@ -6,6 +6,8 @@
 #include <locale.h>
 #include <stdbool.h>
 #include <sys/types.h>
+#include <time.h>
+#include <math.h>
 
 #include "probConst.h"
 #include "sharedRegion.h"
@@ -47,7 +49,7 @@ int main (int argc, char *argv[]) {
       t0 = ((double) clock ()) / CLOCKS_PER_SEC;
       presentDataFileNames(argv + 1, --argc);
 
-      //srandom ((unsigned int) getpid());
+      srandom ((unsigned int) getpid());
 
       for (i = 0; i < NUMB_THREADS; i++)
          if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0)                              /* thread producer */
@@ -70,63 +72,16 @@ int main (int argc, char *argv[]) {
 static void *processText(void *threadId) {
 
    unsigned int id = *((unsigned int *) threadId);
-   char dataToBeProcessed[K+1];
-   controlInfo ci = {};
+   unsigned char dataToBeProcessed[K+1];
+   CONTROLINFO ci = (CONTROLINFO) {0, 0, 0, {0}};
    
-   while (getAPieceOfData (id, dataToBeProcessed, &ci))
+   while (getAPieceOfData (id, &dataToBeProcessed, &ci))
    { 
-      proccess(dataToBeProcessed, &ci)
-      savePartialResults (id, ci);
+      /* process(dataToBeProcessed, &ci);*/
+      savePartialResults (id, &ci);
    }
 
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 
-}
-
-void proccess(char dataToBeProccessed[], controlInfo *ci) {
-    char cha;
-    int counter = 0, size = 0, length = strlen(dataToBeProccessed);
-
-    for (int i = 0; i < length; i++) {
-        if(dataToBeProccessed[i] == (char)0xC3)
-            i++;
-        else if(dataToBeProccessed[i] == (char)0xE2)
-            i += 2;
-
-        if (i >= length)
-            return;
-        
-        cha = dataToBeProccessed[i];
-
-        if (cha >= 65 && cha <= 90) {
-            size++;
-        } else if (cha >= 97 && cha <= 122) {
-            size++;
-        } else if (cha == (char)0xA7 || cha == (char)0x87) {
-            size++;
-        } else if (cha == (char)0xA1 || cha == (char)0xA0 || cha == (char)0xA2 || cha == (char)0xA3 || cha == (char)0x81 || cha == (char)0x80 || cha == (char)0x82 || cha == (char)0x83) {
-            counter++;
-            size++;
-        } else if (cha == (char)0xA9 || cha == (char)0xA8 || cha == (char)0xAA || cha == (char)0x89 || cha == (char)0x88 || cha == (char)0x8A) {
-            counter++;
-            size++;
-        } else if (cha == (char)0xAD || cha == (char)0xAC || cha == (char)0x8D || cha == (char)0x8C) {
-            counter++;
-            size++;
-        } else if (cha == (char)0xB3 || cha == (char)0xB2 || cha == (char)0xB4 || cha == (char)0xB5 || cha == (char)0x93 || cha == (char)0x92 || cha == (char)0x94 || cha == (char)0x95){
-            counter++;
-            size++;
-        } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x94 || cha == (char)0x99) {
-            counter++;
-            size++;
-        }
-
-        if (isValidStopChar(cha)) {
-            ci->bidi[size - 1][counter]++;
-            ci->numbWords++;
-            counter = 0;
-            size = 0;
-        }
-    }
 }
