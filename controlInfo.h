@@ -3,8 +3,9 @@
 
 typedef struct
 {
-   int numbBytes;
-   int numbWords;
+   size_t filePointer;
+   size_t numbBytes;
+   size_t numbWords;
    int bidi[50][50];
 }controlInfo;
 
