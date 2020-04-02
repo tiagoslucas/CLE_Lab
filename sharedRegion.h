@@ -1,5 +1,5 @@
 /**
- *  \file sharedRegion.c (implementation file)
+ *  \file sharedRegion.h (interface file)
  *
  *  \brief Problem name: Problem 1.
  *
@@ -13,7 +13,7 @@
  *     \li putVal
  *     \li getVal.
  *
- *  \author António Rui Borges - March 2019
+ *  \author Francisco Gonçalves and Tiago Lucas - March 2020
  */
 
 #ifndef SHAREDREGION_H
@@ -56,5 +56,6 @@ extern void savePartialResults(unsigned int workerId, CONTROLINFO *ci);
 
 extern void printResults(void);
 
-#endif /* SHAREDREGION_H */
+extern bool isValidStopChar(char character);
 
+#endif /* SHAREDREGION_H */

@@ -1,7 +1,7 @@
 /**
  *  \file fifo.c (implementation file)
  *
- *  \brief Problem name: Producers / Consumers.
+ *  \brief Problem name: Problem 1.
  *
  *  Synchronization based on monitors.
  *  Both threads and the monitor are implemented using the pthread library which enables the creation of a
@@ -13,7 +13,7 @@
  *     \li putVal
  *     \li getVal.
  *
- *  \author Francisco Gonçalves and Tiago Lucas - March 2019
+ *  \author Francisco Gonçalves and Tiago Lucas - March 2020
  */
 
 #include <stdio.h>
@@ -57,7 +57,6 @@ bool isValidStopCharacter(unsigned int, char*);
  *
  *  Internal monitor operation.
  */
-
 void initialization (void)
 {
   CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
@@ -66,7 +65,7 @@ void initialization (void)
   for(i = 0; i < numbFiles; i++)
     results[i] = aux;
 
-  filePointer = bytePointer = 0;                                        /* shared region filepointer and byte pointer are both 0 */
+  filePointer = bytePointer = 0;
 }
 
 
@@ -97,14 +96,14 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
 {
   bool hasData = true;
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)
   { 
-    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    errno = statusWorkers[workerId];
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  pthread_once (&init, initialization);                                              /* internal data initialization */
+  pthread_once (&init, initialization);
 
   int i, aux;
   FILE * fp;
@@ -136,9 +135,8 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   if(filePointer == (numbFiles - 1) )
     hasData = false;
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                 /* exit monitor */
-  {
-    errno = statusWorkers[workerId];                                                            /* save error in errno */
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0) {
+    errno = statusWorkers[workerId];
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
@@ -159,9 +157,8 @@ return hasData;
 void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 {                                                                          
 
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
-  { 
-    errno = statusWorkers[workerId];                                                            /* save error in errno */
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0) { 
+    errno = statusWorkers[workerId];
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
@@ -184,9 +181,9 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   results[filePosition] = ciNew;
 
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                   /* exit monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)
   { 
-    errno = statusWorkers[workerId];                                                             /* save error in errno */
+    errno = statusWorkers[workerId];
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
@@ -206,8 +203,6 @@ void printResults(){
 
   free(results);
 }
-
-
 
 bool isValidStopChar(char character) {
     char separation[19] = { (char)0x20, (char)0x9, (char)0xA, '-', '"', '(', ')', '[', ']', '.', ',', ':', ';', '?', '!', (char)0x9C, (char)0x9D, (char)0x93, (char)0xA6 };
