@@ -61,6 +61,7 @@ bool isValidStopCharacter(char);
 
 void initialization (void)
 {
+  printf("Initialization start\n");
   CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
   int i;
   results = (CONTROLINFO*)malloc(sizeof(CONTROLINFO)*numbFiles);
@@ -68,6 +69,7 @@ void initialization (void)
     results[i] = aux;
 
   filePointer = bytePointer = 0;                                        /* shared region filepointer and byte pointer are both 0 */
+  printf("Initialization complete\n");
 }
 
 
@@ -83,6 +85,7 @@ void initialization (void)
 void presentDataFileNames(char *listOfFiles[], unsigned int size){
   numbFiles = size;
   filesToProcess = listOfFiles;
+  printf("Presented filenames\n");
 }
 
 
@@ -107,16 +110,23 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   }
   pthread_once (&init, initialization);                                              /* internal data initialization */
 
-  int i, aux;
+  printf("Getting piece of data\n");
+  size_t i, aux;
   FILE * fp;
+  
   fp = fopen(filesToProcess[filePointer], "r");
+  
+  printf("Opened file\n");
   ci->filePointer = filePointer;
   ci->numbWords = 0;
 
   if(bytePointer != 0)
     fseek(fp, bytePointer, SEEK_SET);
   
-  if((i = fread(&dataToBeProcessed, 1, K, fp)) < K) {
+  i = fread(&dataToBeProcessed, 1, K, fp);
+  fclose(fp);
+  printf("fread complete\n");
+  if(i < K) {
     filePointer++;
     bytePointer = 0;
   }
@@ -130,8 +140,8 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
       i = aux;
     bytePointer += i;
   }
+  printf("data processed\n");
   ci->numbBytes = i;
-  fclose(fp);
 
   if(filePointer == (numbFiles - 1) )
     hasData = false;
@@ -143,6 +153,7 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
+  printf("Getting data complete\n");
 return hasData;   
 }
 
@@ -166,7 +177,7 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-
+  printf("Saving results start\n");
   size_t filePosition = ci->filePointer;
 
   CONTROLINFO ciNew = results[filePosition];
@@ -182,7 +193,7 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   }
 
   results[filePosition] = ciNew;
-
+  printf("Saving results end\n");
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                   /* exit monitor */
   { 
