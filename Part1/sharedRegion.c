@@ -31,7 +31,7 @@
 extern int statusWorkers[NUMB_THREADS];
 
 /** \brief names of files to process */
-char **filesToProcess;
+char *filesToProcess[MAX_FILES];
 
 /** \brief results of processed text */
 CONTROLINFO* results;
@@ -40,13 +40,16 @@ CONTROLINFO* results;
 unsigned int numbFiles;
 
 /** \brief file pointer */
-unsigned int filePointer;
+int filePosition;
 
 /** \brief byte pointer inside file */
-unsigned int bytePointer;
+static FILE* filePointer;
 
 /** \brief locking flag which warrants mutual exclusion inside the monitor */
-pthread_mutex_t accessCR = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t accessF = PTHREAD_MUTEX_INITIALIZER;
+
+/** \brief locking flag which warrants mutual exclusion inside the monitor */
+pthread_mutex_t accessR = PTHREAD_MUTEX_INITIALIZER;
 
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
@@ -61,14 +64,13 @@ bool isValidStopCharacter(char);
 
 void initialization (void)
 {
-  printf("Initialization start\n");
-  CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
-  int i;
-  results = (CONTROLINFO*)malloc(sizeof(CONTROLINFO)*numbFiles);
-  for(i = 0; i < numbFiles; i++)
-    results[i] = aux;
+  //CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
+  //int i;
+  results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
+  //for(i = 0; i < numbFiles; i++)
+    //results[i] = aux;
 
-  filePointer = bytePointer = 0;                                        /* shared region filepointer and byte pointer are both 0 */
+  filePosition = 0;                                        /* shared region filePosition and byte pointer are both 0 */
   printf("Initialization complete\n");
 }
 
@@ -84,8 +86,8 @@ void initialization (void)
 
 void presentDataFileNames(char *listOfFiles[], unsigned int size){
   numbFiles = size;
-  filesToProcess = listOfFiles;
-  printf("Presented filenames\n");
+  for(int i = 0; i < size; i++)
+    filesToProcess[i] = listOfFiles[i];
 }
 
 
@@ -100,8 +102,10 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 
 bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
 {
-  bool hasData = true;
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
+  if(filePosition == numbFiles)
+    return false;
+
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0)                                   /* enter monitor */
   { 
     errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on entering monitor(CF)");
@@ -110,51 +114,43 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   }
   pthread_once (&init, initialization);                                              /* internal data initialization */
 
-  printf("Getting piece of data\n");
   size_t i, aux;
-  FILE * fp;
   
-  fp = fopen(&filesToProcess[filePointer], "r");
+  if(filePointer == NULL)
+    filePointer = fopen(filesToProcess[filePosition], "rb");
   
   printf("Opened file\n");
-  ci->filePointer = filePointer;
-  ci->numbWords = 0;
-
-  if(bytePointer != 0)
-    fseek(fp, bytePointer, SEEK_SET);
+  ci->filePosition = filePosition;
   
-  i = fread(&dataToBeProcessed, 1, K, fp);
-  fclose(fp);
-  printf("fread complete\n");
+  i = fread(&dataToBeProcessed, 1, K, filePointer);
+  printf("%i\n", i);
+  printf("%s\n", &dataToBeProcessed);
+
   if(i < K) {
-    filePointer++;
-    bytePointer = 0;
-  }
-  else
-  {
+    filePosition++;
+    fclose(filePointer);
+    filePointer = NULL;
+  }else{
     aux = i;
+    printf("entering loop\n");
     while(!isValidStopCharacter(dataToBeProcessed[i-1]) && i > 0){
       i--;
     }
     if(i == 0)
       i = aux;
-    bytePointer += i;
   }
-  printf("data processed\n");
-  ci->numbBytes = i;
 
-  if(filePointer == (numbFiles - 1) )
-    hasData = false;
-
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                 /* exit monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)                                 /* exit monitor */
   {
     errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  printf("Getting data complete\n");
-return hasData;   
+  
+  ci->numbWords = 0;
+  ci->numbBytes = i;
+  return true;
 }
 
 /**
@@ -170,32 +166,27 @@ return hasData;
 void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 {                                                                          
 
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessCR)) != 0)                                   /* enter monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessR)) != 0)                                   /* enter monitor */
   { 
     errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  printf("Saving results start\n");
-  size_t filePosition = ci->filePointer;
 
-  CONTROLINFO ciNew = results[filePosition];
-
-  ciNew.numbBytes += ci->numbBytes;
-  ciNew.numbWords += ci->numbWords;
+  size_t filePosition = ci->filePosition;
+  results[filePosition].numbBytes += ci->numbBytes;
+  results[filePosition].numbWords += ci->numbWords;
 
   //mudar o 50 para variável de tamanho máx de palavra
   for (size_t i = 0; i < 50; i++){
     for (size_t j = 0; j < 50; j++){
-     ciNew.bidi[i][j] += ci->bidi[i][j];
+     results[filePosition].bidi[i][j] += ci->bidi[i][j];
     }
   }
-
-  results[filePosition] = ciNew;
   printf("Saving results end\n");
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessCR)) != 0)                                   /* exit monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
   { 
     errno = statusWorkers[workerId];                                                             /* save error in errno */
     perror ("error on exiting monitor(CF)");
@@ -214,7 +205,6 @@ void printResults(){
 
   }
   
-
   free(results);
 }
 
