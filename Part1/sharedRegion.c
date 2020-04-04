@@ -114,7 +114,7 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   size_t i, aux;
   FILE * fp;
   
-  fp = fopen(filesToProcess[filePointer], "r");
+  fp = fopen(&filesToProcess[filePointer], "r");
   
   printf("Opened file\n");
   ci->filePointer = filePointer;
@@ -209,7 +209,7 @@ void printResults(){
   int i;
   for (i = 0; i < numbFiles; i++){
     printf("File name: %s\n", filesToProcess[i]);
-    printf("Total number of words: %s\n", results[i].numbWords);
+    printf("Total number of words: %ld\n", results[i].numbWords);
     printf("Word length\n");
 
   }

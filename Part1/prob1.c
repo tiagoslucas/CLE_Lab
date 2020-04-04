@@ -16,7 +16,7 @@
 /** \brief workerThread life cycle routine */
 static void *processText (void *id);
 
-void process(char*, CONTROLINFO*);
+void process(unsigned char*, CONTROLINFO*);
 
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
@@ -39,7 +39,7 @@ int main (int argc, char *argv[]) {
    else
    {
       double t0, t1;
-      int rc, i;
+      int i;
       
       unsigned int worker_threads[NUMB_THREADS];
       pthread_t threads_id[NUMB_THREADS];
@@ -88,9 +88,9 @@ static void *processText(void *threadId) {
 
 }
 
-void process(char *dataToBeProccessed, CONTROLINFO *ci) {
+void process(unsigned char* dataToBeProccessed, CONTROLINFO *ci) {
     char cha;
-    int counter = 0, size = 0, length = strlen(dataToBeProccessed);
+    int counter = 0, size = 0, length = ci->numbBytes;
 
     for (int i = 0; i < length; i++) {
         if(dataToBeProccessed[i] == (char)0xC3)
