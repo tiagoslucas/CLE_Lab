@@ -5,7 +5,7 @@
  *
  *  Problem simulation parameters.
  *
- *  \author Francisco Gonçalves and Tiago Lucas - March 2020
+ *  \author Francisco Gonçalves Tiago Lucas - March 2019
  */
 
 #ifndef PROBCONST_H_
@@ -14,10 +14,12 @@
 /* Generic parameters */
 
 /** \brief number of worker Threads */
-#define  NUMB_THREADS          2
+#define  NUMB_THREADS          1
 
 /** \brief number of bytes to be processed each iteration */
 #define  K           1024
 
-#endif /* PROBCONST_H_ */
+/** \brief number of bytes to be processed each iteration */
+#define  MAX_FILES           50
 
+#endif /* PROBCONST_H_ */
