@@ -62,7 +62,7 @@ int main (int argc, char *argv[]) {
       pthread_exit(NULL);
       
       printf ("\nFinal report\n");
-      //printResults();
+      printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
       printf ("\nElapsed time = %.6f s\n", t1 - t0);
@@ -75,33 +75,35 @@ static void *processText(void *threadId) {
 
    unsigned int id = *((unsigned int *) threadId);
    unsigned char dataToBeProcessed[K+1];
-   CONTROLINFO ci = (CONTROLINFO) {0, 0, 0, {0}};
+   //dataToBeProcessed = (unsigned char*) calloc(K+1, sizeof(unsigned char));
+   CONTROLINFO ci = (CONTROLINFO) {0};
    
    while (getAPieceOfData (id, dataToBeProcessed, &ci))
-   { 
-      process(dataToBeProcessed, &ci);
-      savePartialResults (id, &ci);
+   {
+        printf("\n %s", dataToBeProcessed);
+        process(dataToBeProcessed, &ci);
+        savePartialResults (id, &ci);
    }
 
+   //free(dataToBeProcessed); 
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
-
 }
 
-void process(unsigned char* dataToBeProccessed, CONTROLINFO *ci) {
+void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
     char cha;
-    int counter = 0, size = 0, length = ci->numbBytes;
+    int counter = 0, size = 0, length = strlen(dataToBeProcessed);
 
     for (int i = 0; i < length; i++) {
-        if(dataToBeProccessed[i] == (char)0xC3)
+        if(dataToBeProcessed[i] == (char)0xC3)
             i++;
-        else if(dataToBeProccessed[i] == (char)0xE2)
+        else if(dataToBeProcessed[i] == (char)0xE2)
             i += 2;
 
         if (i >= length)
             return;
         
-        cha = dataToBeProccessed[i];
+        cha = dataToBeProcessed[i];
 
         if (cha >= 65 && cha <= 90) {
             size++;
@@ -133,4 +135,5 @@ void process(unsigned char* dataToBeProccessed, CONTROLINFO *ci) {
             size = 0;
         }
     }
+    printf("Processing end\n");
 }
