@@ -52,7 +52,7 @@ static FILE* filePointer;
 unsigned int rxyIndex;
 
 /** \brief New value of signals per file */
-unsigned int signalsPerFile;
+unsigned int *signalsPerFile = NULL;
 
 /** \brief locking flag which warrants mutual exclusion inside the monitor */
 pthread_mutex_t accessF = PTHREAD_MUTEX_INITIALIZER;
@@ -73,11 +73,13 @@ bool isValidStopCharacter(char);
 
 void initialization (void)
 {
+  filePosition = rxyIndex = 0;                                        /* shared region filepointer and byte pointer are both 0 */
   calculatedResults = (CONTROLINFO**)calloc(numbFiles*NUMB_SIGNALS_PER_FILE,sizeof(CONTROLINFO));
   results = (CONTROLINFO**)calloc(numbFiles*NUMB_SIGNALS_PER_FILE,sizeof(CONTROLINFO));
-  filePosition = rxyIndex = 0;                                        /* shared region filepointer and byte pointer are both 0 */
   filePointer = NULL;
-  signalsPerFile = NUMB_SIGNALS_PER_FILE;
+  signalsPerFile = malloc(numbFiles * sizeof(int));
+  for (size_t i = 0; i < numbFiles; ++i) 
+    signalsPerFile[i] = NUMB_SIGNALS_PER_FILE;
 }
 
 
@@ -138,30 +140,47 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     ci->numbSamples = samples;
     ci->rxyIndex = rxyIndex;
     size_t j;
-    rxyIndex += 1;
+    rxyIndex++;
+    if(!ci->initial){
+      if(j > ci->numbSamples){
+        x = (double*)realloc(x, sizeof(double)*samples);
+        y = (double*)realloc(y, sizeof(double)*samples);
+        ci->result = (double*)realloc(ci->result, sizeof(double)*samples);
+      }
+    }else{
+      x = (double*)malloc(sizeof(double)*samples);
+      y = (double*)malloc(sizeof(double)*samples);
+      ci->result = (double*)malloc(sizeof(double)*samples);
+    }
 
+    printf("Number of samples - %i\n", samples);
     fread(x, sizeof(double), samples, filePointer);
     fread(y, sizeof(double), samples, filePointer);
-    fread(&ci->result, sizeof(double), samples, filePointer);
+    fread(ci->result, sizeof(double), samples, filePointer);
+    
+    //printf("values\n");
+    //printf("X- %f \n", x[0]);
+    //printf("Y- %f\n", &y[0]);
 
-    printf("j- %i\n", samples);
-    printf("X- %f \n", x[0]);
-    printf("Y- %f\n", y[0]);
-    printf("results- %f\n", ci->result[0]);
-
-    if(rxyIndex > signalsPerFile){
+    if(rxyIndex > signalsPerFile[filePosition]){ 
+      printf("Increasing size of results\n");
+      calculatedResults[filePosition] = (CONTROLINFO*)realloc(results[filePosition],rxyIndex*sizeof(CONTROLINFO));
       results[filePosition] = (CONTROLINFO*)realloc(results[filePosition],rxyIndex*sizeof(CONTROLINFO));
-      signalsPerFile = rxyIndex;
+      signalsPerFile[filePosition] = rxyIndex;
     }
-    for(j = 0; j < samples; j++)
-      results[filePosition][rxyIndex].result[j] = ci->result[j];
+    for(j = 0; j < samples; j++){
+      //printf("bro\n");
+      printf("%f\n", results[filePosition][rxyIndex].result[j]);
+      //results[filePosition][rxyIndex].result[j] = ci.result;
+    }
 
   }else{
+    signalsPerFile[filePosition] = rxyIndex;
     rxyIndex = 0;
-    signalsPerFile = NUMB_SIGNALS_PER_FILE;
     filePosition++;
     fclose(filePointer);
   }
+  printf("left getdata\n");
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)                                 /* exit monitor */
   {
@@ -195,11 +214,13 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
     pthread_exit (&statusWorkers[workerId]);
   }
 
-  size_t filePosition = ci->filePosition;
-  size_t numbSamples = ci->numbSamples;
+  size_t i, filePos, samples;
+  filePos = ci->filePosition;
+  samples = ci->numbSamples;
 
-  for (size_t i = 0; i < numbSamples; i++){
-    calculatedResults[filePosition][rxyIndex].result[i] = ci->result[i];
+  for (i = 0; i < samples; i++){
+    calculatedResults[filePos][rxyIndex].result[i] = ci->result[i];
+    ci->result[i] = 0;
     //printf(" %i ", calculatedResults[filePosition][rxyIndex].result[i]);
     //printf("\n");
   }
@@ -216,23 +237,32 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 void printResults(){
   
   bool isResultCorrect = true;
-  size_t i, j, x;
+  size_t i, j, x, numbErrors, numbSignalsF;
 
   for (i = 0; i < numbFiles; i++)
   {
-    for (j = 0; j < NUMB_SIGNALS_PER_FILE; j++)
+    numbSignalsF = signalsPerFile[i];
+    numbErrors = 0;
+    for (j = 0; j < numbSignalsF; j++)
     {
       for (x = 0; x < results[i][j].numbSamples; x++)
       {
         if (results[i][j].result[x] != calculatedResults[i][j].result[x])
         {
-          printf("erro no ficheiro - %i\n", i);
+          numbErrors++;
+          isResultCorrect = false;
+          printf("Erro no ficheiro - %s, no sinal %i.\n", filesToProcess[i], j);
         }
         
       }
-      
+      free(results[i][j].result);
+      free(calculatedResults[i][j].result);
     }
-    
+  if(isResultCorrect)
+    printf("Ficheiro %s não teve erros no seu cálculo.\n", filesToProcess[i]);
+  else 
+    printf("Ficheiro %s teve um total de %i erros no seu cálculo.\n", filesToProcess[i], numbErrors);
+  isResultCorrect = true;
   }
   
   free(calculatedResults);
