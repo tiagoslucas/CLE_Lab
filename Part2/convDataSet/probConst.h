@@ -22,4 +22,8 @@
 /** \brief standard number of signals per each file */
 #define  NUMB_SIGNALS_PER_FILE      50
 
+/** \brief standard number of signals per each file */
+#define  STANDARD_SIZE_SIGNAL      1024
+
+
 #endif /* PROBCONST_H_ */
