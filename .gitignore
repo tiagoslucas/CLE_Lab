@@ -1,4 +1,7 @@
 **.exe*
+**.o
 **.dev
 **.layout
-**.o
+**.gch
+**akefile**
+**DataSet**
