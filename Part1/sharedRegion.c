@@ -53,10 +53,11 @@ pthread_mutex_t accessR = PTHREAD_MUTEX_INITIALIZER;
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
 
+
 int isValidStopCharacter(char);
 
 /**
- *  \brief Initialization of the shared region.
+ *  \brief Initialization of the results region.
  *
  *  Internal monitor operation.
  */
@@ -64,11 +65,7 @@ int isValidStopCharacter(char);
 void initialization (void)
 {
   results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
-  //CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
-  //int i;
-  //for(i = 0; i < numbFiles; i++)
-    //results[i] = aux;
-  filePosition = 0;                                        /* shared region filePosition is 0 */
+  filePosition = 0;                                      /* shared region filePosition is 0 */
 }
 
 
@@ -99,8 +96,6 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 
 bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
 {
-  if(filePosition == numbFiles)
-    return false;
 
   if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0){                                   /* enter monitor */
     errno = statusWorkers[workerId];                                                            /* save error in errno */
@@ -110,6 +105,15 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   }
   pthread_once (&init, initialization);                                              /* internal data initialization */
 
+  if(filePosition == numbFiles){
+    if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0){                                 /* exit monitor */
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    perror ("error on exiting monitor(CF)");
+    statusWorkers[workerId] = EXIT_FAILURE;
+    pthread_exit (&statusWorkers[workerId]);
+    }
+    return false;
+  }
   size_t i, aux;
   
   if(filePointer == NULL)
@@ -142,7 +146,6 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  
   return true;
 }
 
@@ -173,14 +176,10 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 
   for (size_t i = 0; i < ci->maxWordLength+1; i++){
     for (size_t j = 0; j < ci->maxWordLength; j++){
-        //if(i>j+1)
-          //printf("   ");
-        //else{
           results[filePosition].bidi[i][j] += ci->bidi[i][j];
-          printf(" %i ", ci->bidi[i][j]);
-        //}
+          //printf(" %i ", results[filePosition].bidi[i][j]);
     }
-    printf("\n");
+    //printf("\n");
   }
   
 
@@ -207,7 +206,7 @@ void printResults(){
     int Words[max_len];
     sum = 0;
     for (y = 0; y < max_len; y++){
-      printf("%-8d\t", y+1);
+      printf("%-7d\t", y+1);
       for (x = 0; x < max_len+1; x++){
         if(results[i].bidi[x][y] != 0)
           sum += results[i].bidi[x][y];
@@ -217,19 +216,26 @@ void printResults(){
       //printf("para tamanho %i - %i palavras\n", y+1, numbWords[y]);
     }
     printf("\n");
+
+    for (x = 0; x < max_len; x++)
+      printf("%-7d\t", Words[x]);
     
-    for (x = 0; x < max_len+3; x++){
-      for (y = 0; y < max_len; y++){
-        if(x == 0)
-          printf("%-8d\t", Words[y]);
-        if(x == 1)
-          printf("%-8.2f\t", (double) Words[y]/results[i].numbWords*100);
-        //else{
-          //printf("%-8.2f\t", (double) results[i].bidi[x-2][y]/Words[y]*100);
-        //}
+    printf("\n");
+
+    for (x = 0; x < max_len; x++)
+      printf("%-7.2f\t", (double) Words[x]/results[i].numbWords*100);
+
+    printf("\n");
+
+    /*for (x = 0; x < max_len; x++){
+        for (y = 0; y < max_len; y++){
+          if(x>y+1)
+            printf("%-7.2f\t", 0);
+          else
+            printf("%-7.2f\t", (double) results[i].bidi[x][y]/Words[x]*100);
       }
       printf("\n");
-    }
+    }*/
   }
   
   free(results);
