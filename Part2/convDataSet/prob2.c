@@ -54,15 +54,20 @@ int main (int argc, char *argv[]) {
       //srandom ((unsigned int) getpid());
 
       for (i = 0; i < NUMB_THREADS; i++)
-         if (pthread_create (&threads_id[i], NULL, process, &worker_threads[i]) != 0)                              /* thread producer */
-         { 
+         if (pthread_create (&threads_id[i], NULL, process, &worker_threads[i]) != 0){ 
             perror ("error on creating worker threads");
             exit (EXIT_FAILURE);
          }
-      pthread_exit(NULL);
+        
+      for (i = 0; i < NUMB_THREADS; i++)
+         if (pthread_join (threads_id[i], NULL) != 0){ 
+            perror ("error on joining");
+            exit (EXIT_FAILURE);
+         }
+
       
       printf ("\nFinal report\n");
-      printResults();
+      //printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
       printf ("\nElapsed time = %.6f s\n", t1 - t0);
@@ -74,16 +79,20 @@ int main (int argc, char *argv[]) {
 static void *process(void *threadId) {
 
    unsigned int id = *((unsigned int *) threadId);
-   double *x;
-   double *y;
+   double* x;
+   double* y;
    CONTROLINFO ci = (CONTROLINFO) {0};
+   ci.initial = true;
    
    while (getAPieceOfData (id, x, y, &ci))
    { 
-      //circularCrossCorrelation(x, y, &ci);
+      circularCrossCorrelation(x, y, &ci);
       savePartialResults (id, &ci);
    }
 
+   free(ci.result);
+   free(x);
+   free(y);
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 
@@ -91,13 +100,21 @@ static void *process(void *threadId) {
 
 void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
 
-   int i;
-   int length = sizeof(x) / sizeof(x[0]);
-   for (i = 0; i < length; i++)
-   {
-      ci->result[i] = x[i] * y[(2*i)%length];
+   size_t i, j;
+   int n = ci->numbSamples;
+   for (i = 0; i < n; i++){
+      for(j = 0; j < n; j++){
+         ci->result[i] += x[j] * y[(i+j)%n];
+      }
    }
+}
 
-   //int numbBytestoCirculate = 2;
-   //y = (x << numbBytestoCirculate) | (x >> (8 - numbBytestoCirculate));
+
+double norm(double *x, size_t n){
+   double result = 0;
+   size_t i;
+   for(i = 0; i < n; i++){
+      result += pow(abs(x[i]), 2);
+   }
+   result = sqrt(result);
 }
