@@ -5,8 +5,8 @@
 
 typedef struct
 {
-   size_t filePointer;
-   size_t signalSize;
+   size_t filePosition;
+   size_t numbSamples;
    size_t rxyIndex;
    double result[];
 }CONTROLINFO;
