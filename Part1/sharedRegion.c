@@ -68,8 +68,7 @@ void initialization (void)
   //int i;
   //for(i = 0; i < numbFiles; i++)
     //results[i] = aux;
-  filePosition = 0;                                        /* shared region filePosition and byte pointer are both 0 */
-  filePointer = NULL;
+  filePosition = 0;                                        /* shared region filePosition is 0 */
 }
 
 
@@ -98,19 +97,18 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
  *  \param val value to be stored
  */
 
-bool getAPieceOfData(unsigned int workerId, unsigned char* dataToBeProcessed, CONTROLINFO *ci)
+bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
 {
   if(filePosition == numbFiles)
     return false;
 
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0)
-  { 
-    errno = statusWorkers[workerId];
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0){                                   /* enter monitor */
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  pthread_once (&init, initialization);
+  pthread_once (&init, initialization);                                              /* internal data initialization */
 
   size_t i, aux;
   
@@ -120,14 +118,14 @@ bool getAPieceOfData(unsigned int workerId, unsigned char* dataToBeProcessed, CO
   ci->filePosition = filePosition;
   ci->numbWords = 0;
   ci->maxWordLength = 0;
-
-  i = fread(dataToBeProcessed, sizeof(char), K, filePointer);
+  
+  i = fread(dataToBeProcessed, 1, K, filePointer);
 
   if(i < K) {
     filePosition++;
     fclose(filePointer);
     filePointer = NULL;
-  } else {
+  }else{
     aux = i;
     while(isValidStopCharacter(dataToBeProcessed[i-1]) == 0 && i > 0){
       i--;
@@ -138,13 +136,13 @@ bool getAPieceOfData(unsigned int workerId, unsigned char* dataToBeProcessed, CO
   }
   ci->numbBytes = i;
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)
-  {
-    errno = statusWorkers[workerId];
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0){                                 /* exit monitor */
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
+  
   return true;
 }
 
@@ -161,8 +159,7 @@ bool getAPieceOfData(unsigned int workerId, unsigned char* dataToBeProcessed, CO
 void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 {                                                                          
 
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessR)) != 0)                                   /* enter monitor */
-  { 
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessR)) != 0){                                   /* enter monitor */
     errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
@@ -172,15 +169,22 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   size_t filePosition = ci->filePosition;
   results[filePosition].numbBytes += ci->numbBytes;
   results[filePosition].numbWords += ci->numbWords;
+  results[filePosition].maxWordLength = ci->maxWordLength;
 
-  for (size_t i = 0; i < ci->maxWordLength; i++){
+  for (size_t i = 0; i < ci->maxWordLength+1; i++){
     for (size_t j = 0; j < ci->maxWordLength; j++){
-      results[filePosition].bidi[i][j] += ci->bidi[i][j];
+        //if(i>j+1)
+          //printf("   ");
+        //else{
+          results[filePosition].bidi[i][j] += ci->bidi[i][j];
+          printf(" %i ", ci->bidi[i][j]);
+        //}
     }
+    printf("\n");
   }
+  
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
-  { 
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0){                                  /* exit monitor */ 
     errno = statusWorkers[workerId];                                                             /* save error in errno */
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
@@ -190,7 +194,7 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 
 void printResults(){
 
-  size_t x, y, i, max_len;
+  size_t x, y, i, max_len, sum;
 
   for (i = 0; i < numbFiles; i++){
 
@@ -200,25 +204,31 @@ void printResults(){
     printf("Total number of words: %lu \n", results[i].numbWords);
     printf("Word length\n");
 
-    int numbWords[max_len];
-
-    for (x = 0; x < max_len; x++){
-      for (y = 0; y < max_len; y++){
-        numbWords[x] += results[i].bidi[y][x];
-        if(x == 0)
-          ;//printf("\t%i\t", y+1);
+    int Words[max_len];
+    sum = 0;
+    for (y = 0; y < max_len; y++){
+      printf("%-8d\t", y+1);
+      for (x = 0; x < max_len+1; x++){
+        if(results[i].bidi[x][y] != 0)
+          sum += results[i].bidi[x][y];
       }
+      Words[y] = sum;
+      sum = 0;
+      //printf("para tamanho %i - %i palavras\n", y+1, numbWords[y]);
     }
-    //printf("\n");
+    printf("\n");
     
-    for (x = 0; x < max_len+1; x++){
-      for (y = 0; y < max_len+1; y++){
+    for (x = 0; x < max_len+3; x++){
+      for (y = 0; y < max_len; y++){
         if(x == 0)
-          ;//printf("\t %f \t", (double) (numbWords[y]/max_len)*100);
-        else
-          ;//printf("%i\t%f\t", (double) results[i].bidi[y][x]/numbWords[x] * 100);
+          printf("%-8d\t", Words[y]);
+        if(x == 1)
+          printf("%-8.2f\t", (double) Words[y]/results[i].numbWords*100);
+        //else{
+          //printf("%-8.2f\t", (double) results[i].bidi[x-2][y]/Words[y]*100);
+        //}
       }
-      ;//printf("\n");
+      printf("\n");
     }
   }
   
