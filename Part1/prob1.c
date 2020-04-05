@@ -35,7 +35,6 @@ int main (int argc, char *argv[]) {
       printf("Please insert text files to be processed as arguments!");
       exit(EXIT_FAILURE);
    }
-
    else
    {
         double t0, t1;
@@ -65,7 +64,6 @@ int main (int argc, char *argv[]) {
                 exit (EXIT_FAILURE);
             }
       
-      printf ("\nFinal report\n");
       printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
@@ -85,7 +83,7 @@ static void *processText(void *threadId) {
         process(dataToBeProcessed, &ci);
         savePartialResults (id, &ci);
    }
-    printf("left - %i\n", id);
+   //printf("left - %i\n", id);
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 }
@@ -93,7 +91,7 @@ static void *processText(void *threadId) {
 void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
     char cha;
     bool inWord = false;
-    int skip, nVowels = 0, nCharacters = 0, length = ci->numbBytes, maxWordLength = ci->maxWordLength;
+    int skip, nVowels = 0, nCharacters = 0, maxWordLength = 0, length = ci->numbBytes;
     
     for (int i = 0; i < length; i++) {
     	skip = 0;
@@ -106,48 +104,61 @@ void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
 		}
         cha = dataToBeProcessed[i];
 
-        if (skip == 0 && cha >= 65 && cha <= 90) {
+		if (cha >= 48 && cha <= 57) {
+			inWord = true;
+            nCharacters++;
+        } else if (skip == 0 && cha >= 65 && cha <= 90) {
+            inWord = true;
+            nCharacters++;
         	if (cha == 65 || cha == 69 || cha == 73 || cha == 79 || cha == 85)
         		nVowels++;
-            nCharacters++;
-            inWord = true;
         } else if (skip == 0 && cha >= 97 && cha <= 122) {
+            inWord = true;
+            nCharacters++;
         	if (cha == 97 || cha == 101 || cha == 105 || cha == 111 || cha == 117)
         		nVowels++;
-            nCharacters++;
+        } else if (skip == 0 && cha == '_') {
             inWord = true;
-        } else if (skip == 0 && (cha == (char)0x5F || cha == 0x27)) {
             nCharacters++;
-            inWord = true;
+		} else if ((skip == 0 && cha == (char)0x27) || (skip == 2 && cha == (char)0x98) || (skip == 2 && cha == 0x99)) {
+            ;
 		} else if (skip == 1) {
-			inWord = true;
 			if (cha == (char)0xA7 || cha == (char)0x87) {
+            	inWord = true;
 	            nCharacters++;
 	        } else if (cha == (char)0xA1 || cha == (char)0xA0 || cha == (char)0xA2 || cha == (char)0xA3 || cha == (char)0x81 || cha == (char)0x80 || cha == (char)0x82 || cha == (char)0x83) {
-	            nVowels++;
+	            inWord = true;
 	            nCharacters++;
+	            nVowels++;
 	        } else if (cha == (char)0xA9 || cha == (char)0xA8 || cha == (char)0xAA || cha == (char)0x89 || cha == (char)0x88 || cha == (char)0x8A) {
-	            nVowels++;
+	            inWord = true;
 	            nCharacters++;
+	            nVowels++;
 	        } else if (cha == (char)0xAD || cha == (char)0xAC || cha == (char)0x8D || cha == (char)0x8C) {
-	            nVowels++;
+	            inWord = true;
 	            nCharacters++;
+	            nVowels++;
 	        } else if (cha == (char)0xB3 || cha == (char)0xB2 || cha == (char)0xB4 || cha == (char)0xB5 || cha == (char)0x93 || cha == (char)0x92 || cha == (char)0x94 || cha == (char)0x95) {
-	    		nVowels++;
+	    		inWord = true;
 	            nCharacters++;
-	        } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x9A || cha == (char)0x99) {
 	            nVowels++;
+	        } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x9A || cha == (char)0x99) {
+	            inWord = true;
 	            nCharacters++;
+	            nVowels++;
 	    	}
-        } else if (isValidStopCharacter(cha) && inWord) {
+        } else if (inWord && (skip == 0 && isValidStopCharacter(cha) == 1) || (inWord && skip == 2 && isValidStopCharacter(cha) == 3) ) {
             ci->bidi[nVowels][nCharacters - 1]++;
             ci->numbWords++;
             if (nCharacters > maxWordLength)
             	maxWordLength = nCharacters;
+            //printf("Chars: %lu, Vowels: %lu\n",nCharacters,nVowels);
             nCharacters = 0;
             nVowels = 0;
             inWord = false;
         }
     }
-    ci->maxWordLength = maxWordLength;
+    
+    if (maxWordLength > ci->maxWordLength)
+		ci->maxWordLength = maxWordLength;
 }

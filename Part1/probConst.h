@@ -14,7 +14,7 @@
 /* Generic parameters */
 
 /** \brief number of worker Threads */
-#define  NUMB_THREADS       4
+#define  NUMB_THREADS       1
 
 /** \brief number of bytes to be processed each iteration */
 #define  K                  1024
@@ -24,6 +24,9 @@
 
 /** \brief max size of word */
 #define  MAX_SIZE_WORD      50
+
+/** \brief alignment in print */
+#define ALIGNMENT			6
 
 #endif /* PROBCONST_H_ */
 

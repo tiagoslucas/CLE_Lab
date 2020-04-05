@@ -53,6 +53,8 @@ pthread_mutex_t accessR = PTHREAD_MUTEX_INITIALIZER;
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
 
+/** \brief byte pointer inside file */
+int *maxWordLEN;
 
 int isValidStopCharacter(char);
 
@@ -65,6 +67,7 @@ int isValidStopCharacter(char);
 void initialization (void)
 {
   results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
+  maxWordLEN = calloc(numbFiles, sizeof(int));
   filePosition = 0;                                      /* shared region filePosition is 0 */
 }
 
@@ -120,9 +123,6 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
     filePointer = fopen(filesToProcess[filePosition], "rb");
   
   ci->filePosition = filePosition;
-  ci->numbWords = 0;
-  ci->maxWordLength = 0;
-  
   i = fread(dataToBeProcessed, 1, K, filePointer);
 
   if(i < K) {
@@ -173,18 +173,18 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   results[filePosition].numbBytes += ci->numbBytes;
   results[filePosition].numbWords += ci->numbWords;
   results[filePosition].maxWordLength = ci->maxWordLength;
+  maxWordLEN[filePosition] = ci->maxWordLength;
+  ci->numbWords = 0;
 
   for (size_t i = 0; i < ci->maxWordLength+1; i++){
     for (size_t j = 0; j < ci->maxWordLength; j++){
           results[filePosition].bidi[i][j] += ci->bidi[i][j];
-          //printf(" %i ", results[filePosition].bidi[i][j]);
+          ci->bidi[i][j] = 0;
     }
-    //printf("\n");
   }
-  
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0){                                  /* exit monitor */ 
-    errno = statusWorkers[workerId];                                                             /* save error in errno */
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0){
+    errno = statusWorkers[workerId];
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
@@ -193,51 +193,51 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 
 void printResults(){
 
-  size_t x, y, i, max_len, sum;
+  size_t x, y, i, max_len;
 
   for (i = 0; i < numbFiles; i++){
-
-    max_len = results[i].maxWordLength;
+    max_len = maxWordLEN[i];
     
     printf("File name: %s\n", filesToProcess[i]);
     printf("Total number of words: %lu \n", results[i].numbWords);
     printf("Word length\n");
 
-    int Words[max_len];
-    sum = 0;
+    int Words[maxWordLEN[i]];
+    printf(" ");
     for (y = 0; y < max_len; y++){
-      printf("%-7d\t", y+1);
-      for (x = 0; x < max_len+1; x++){
-        if(results[i].bidi[x][y] != 0)
-          sum += results[i].bidi[x][y];
-      }
-      Words[y] = sum;
-      sum = 0;
-      //printf("para tamanho %i - %i palavras\n", y+1, numbWords[y]);
+      Words[y] = 0;
+      printf("%*d\t", ALIGNMENT, y+1);
+      for (x = 0; x <= max_len; x++)
+        Words[y] += results[i].bidi[x][y];
     }
-    printf("\n");
+    printf("\n\n");
 
+    printf(" ");
     for (x = 0; x < max_len; x++)
-      printf("%-7d\t", Words[x]);
+      printf("%*d\t", ALIGNMENT, Words[x]);
     
-    printf("\n");
+    printf("\n\n");
 
+    printf(" ");
     for (x = 0; x < max_len; x++)
-      printf("%-7.2f\t", (double) Words[x]/results[i].numbWords*100);
+      printf("%*.2f\t", ALIGNMENT, (double) Words[x]/results[i].numbWords*100);
 
-    printf("\n");
-
-    /*for (x = 0; x < max_len; x++){
-        for (y = 0; y < max_len; y++){
-          if(x>y+1)
-            printf("%-7.2f\t", 0);
-          else
-            printf("%-7.2f\t", (double) results[i].bidi[x][y]/Words[x]*100);
+    printf("\n\n");
+    
+    for (x = 0; x < max_len + 1; x++){
+    printf("%i",x);
+      for (y = 0; y < max_len; y++){
+        if(x > y+1)
+          printf("\t");
+        else if (Words[y] == 0)
+          printf("%*.1f\t", ALIGNMENT, 0);
+        else
+          printf("%*.1f\t", ALIGNMENT, (double) results[i].bidi[x][y]/Words[y]*100);
+          
       }
-      printf("\n");
-    }*/
+    printf("\n\n");
+    }
   }
-  
   free(results);
 }
 
