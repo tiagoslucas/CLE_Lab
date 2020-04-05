@@ -79,20 +79,16 @@ int main (int argc, char *argv[]) {
 static void *process(void *threadId) {
 
    unsigned int id = *((unsigned int *) threadId);
-   double* x;
-   double* y;
+   double x[DEFAULT_SIZE_SIGNAL];
+   double y[DEFAULT_SIZE_SIGNAL];
    CONTROLINFO ci = (CONTROLINFO) {0};
    ci.initial = true;
-   
    while (getAPieceOfData (id, x, y, &ci))
    { 
       circularCrossCorrelation(x, y, &ci);
       savePartialResults (id, &ci);
    }
 
-   free(ci.result);
-   free(x);
-   free(y);
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 
@@ -102,19 +98,12 @@ void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
 
    size_t i, j;
    int n = ci->numbSamples;
-   for (i = 0; i < n; i++){
+   int temp = ci->rxyIndex; 
+   double aux[n];
+   for (i = 0; i < temp; i++){
       for(j = 0; j < n; j++){
-         ci->result[i] += x[j] * y[(i+j)%n];
+          aux[i] += x[j] * y[(i+j)%n];
       }
    }
-}
-
-
-double norm(double *x, size_t n){
-   double result = 0;
-   size_t i;
-   for(i = 0; i < n; i++){
-      result += pow(abs(x[i]), 2);
-   }
-   result = sqrt(result);
+   memcpy(ci->result, aux, sizeof(double)*n);
 }
