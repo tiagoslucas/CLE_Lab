@@ -34,36 +34,38 @@ int main (int argc, char *argv[]) {
       printf("Please insert text files to be processed as arguments!");
       exit(EXIT_FAILURE);
    }
+
    else
    {
-      double t0, t1;
-      int i;
+        double t0, t1;
+        int i;
       
-      unsigned int worker_threads[NUMB_THREADS];
-      pthread_t threads_id[NUMB_THREADS];
+        unsigned int worker_threads[NUMB_THREADS];
+        pthread_t threads_id[NUMB_THREADS];
 
 
-      for (i = 0; i < NUMB_THREADS; i++)
-         worker_threads[i] = i;
+        for (i = 0; i < NUMB_THREADS; i++)
+            worker_threads[i] = i;
 
-      t0 = ((double) clock ()) / CLOCKS_PER_SEC;
+        t0 = ((double) clock ()) / CLOCKS_PER_SEC;
 
-      presentDataFileNames(argv + 1, --argc);
-      //srandom ((unsigned int) getpid());
+        presentDataFileNames(argv + 1, --argc);
+        //srandom ((unsigned int) getpid());
 
-      for (i = 0; i < NUMB_THREADS; i++)
-		if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0)
-		{ 
-			perror ("error on creating worker threads");
-			exit (EXIT_FAILURE);
-		}
-	  for (i = 0; i < NUMB_THREADS; i++)
-        if (pthread_join (threads_id[i], NULL) != 0){ 
-            perror ("error on joining");
-            exit (EXIT_FAILURE);
-        }
+        for (i = 0; i < NUMB_THREADS; i++)
+            if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0){ 
+                perror ("error on creating worker threads");
+                exit (EXIT_FAILURE);
+            }
+        
+        for (i = 0; i < NUMB_THREADS; i++)
+            if (pthread_join (threads_id[i], NULL) != 0){ 
+                perror ("error on joining");
+                exit (EXIT_FAILURE);
+            }
       
       printf ("\nFinal report\n");
+      
       printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
@@ -77,7 +79,6 @@ static void *processText(void *threadId) {
 
    unsigned int id = *((unsigned int *) threadId);
    unsigned char dataToBeProcessed[K+1];
-   //dataToBeProcessed = (unsigned char*) calloc(K+1, sizeof(unsigned char));
    CONTROLINFO ci = {0};
    
    while (getAPieceOfData (id, dataToBeProcessed, &ci))
@@ -86,7 +87,6 @@ static void *processText(void *threadId) {
         savePartialResults (id, &ci);
    }
 
-   //free(dataToBeProcessed); 
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 }
@@ -117,7 +117,7 @@ void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
         		nVowels++;
             nCharacters++;
             inWord = true;
-        } else if (skip == 0 && inWord && (cha == (char)0x5F || cha == 0x27)) {
+        } else if (skip == 0 && (cha == (char)0x5F || cha == 0x27)) {
             nCharacters++;
             inWord = true;
 		} else if (skip == 1) {
@@ -141,7 +141,7 @@ void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
 	            nCharacters++;
 	    	}
         } else if (isValidStopCharacter(cha) && inWord) {
-            ci->bidi[nCharacters - 1][nVowels]++;
+            ci->bidi[nVowels][nCharacters - 1]++;
             ci->numbWords++;
             if (nCharacters > maxWordLength)
             	maxWordLength = nCharacters;
@@ -151,6 +151,4 @@ void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
         }
     }
     ci->maxWordLength = maxWordLength;
-    printf("%lu  ",ci->maxWordLength);
 }
-
