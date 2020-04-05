@@ -31,10 +31,13 @@
 extern int statusWorkers[NUMB_THREADS];
 
 /** \brief names of files to process */
-char *filesToProcess[MAX_FILES];
+char* filesToProcess[MAX_FILES];
 
-/** \brief results of processed text */
-CONTROLINFO* results;
+/** \brief array of results read for each file file */
+CONTROLINFO** results;
+
+/** \brief array of results calculated for each file file */
+CONTROLINFO** calculatedResults;
 
 /** \brief number of files to process */
 unsigned int numbFiles;
@@ -47,6 +50,9 @@ static FILE* filePointer;
 
 /** \brief Index of element rxy */
 unsigned int rxyIndex;
+
+/** \brief New value of signals per file */
+unsigned int signalsPerFile;
 
 /** \brief locking flag which warrants mutual exclusion inside the monitor */
 pthread_mutex_t accessF = PTHREAD_MUTEX_INITIALIZER;
@@ -67,14 +73,11 @@ bool isValidStopCharacter(char);
 
 void initialization (void)
 {
-  //CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
-  //int i;
-  results = (CONTROLINFO*)calloc(numbFiles,sizeof(CONTROLINFO));
-  //for(i = 0; i < numbFiles; i++)
-    //results[i] = aux;
-
+  calculatedResults = (CONTROLINFO**)calloc(numbFiles*NUMB_SIGNALS_PER_FILE,sizeof(CONTROLINFO));
+  results = (CONTROLINFO**)calloc(numbFiles*NUMB_SIGNALS_PER_FILE,sizeof(CONTROLINFO));
   filePosition = rxyIndex = 0;                                        /* shared region filepointer and byte pointer are both 0 */
   filePointer = NULL;
+  signalsPerFile = NUMB_SIGNALS_PER_FILE;
 }
 
 
@@ -105,10 +108,6 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 
 bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *ci)
 {
-
-  if(filePosition == numbFiles)
-    return false;
-
   if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0)                                   /* enter monitor */
   { 
     errno = statusWorkers[workerId];                                                            /* save error in errno */
@@ -118,37 +117,48 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
   }
   pthread_once (&init, initialization);                                              /* internal data initialization */
   
+  if(filePosition == numbFiles){
+    if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0){                                 /* exit monitor */
+    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    perror ("error on exiting monitor(CF)");
+    statusWorkers[workerId] = EXIT_FAILURE;
+    pthread_exit (&statusWorkers[workerId]);
+    }
+    return false;
+  }
+
   if(filePointer == NULL)
     filePointer = fopen(filesToProcess[filePosition], "rb");
 
-  int j;
-  size_t i = fread(&j, sizeof(int), 1, filePointer);
+  size_t samples;
+  size_t i = fread(&samples, sizeof(int), 1, filePointer);
 
   if(i == 1){
-    double x[j];
-    double y[j];
-    double result[j];
 
-    ci->signalSize = j;
+    ci->numbSamples = samples;
     ci->rxyIndex = rxyIndex;
-    //ci->result = result;
+    size_t j;
     rxyIndex += 1;
 
-    fread(&x, sizeof(double), j, filePointer);
-    fread(&y, sizeof(double), j, filePointer);
-    fread(&result, sizeof(double), j, filePointer);
-    printf("j- %i\n", j);
-    printf("X- %f \n", x[1]);
-    printf("Y- %f\n", y[1]);
-    printf("results- %f\n", results[1);
+    fread(x, sizeof(double), samples, filePointer);
+    fread(y, sizeof(double), samples, filePointer);
+    fread(&ci->result, sizeof(double), samples, filePointer);
 
-    double mine = (double)x[1] * y[(2*1)%j];
-    printf("\n mine - %f", mine);
+    printf("j- %i\n", samples);
+    printf("X- %f \n", x[0]);
+    printf("Y- %f\n", y[0]);
+    printf("results- %f\n", ci->result[0]);
 
-    //save results
+    if(rxyIndex > signalsPerFile){
+      results[filePosition] = (CONTROLINFO*)realloc(results[filePosition],rxyIndex*sizeof(CONTROLINFO));
+      signalsPerFile = rxyIndex;
+    }
+    for(j = 0; j < samples; j++)
+      results[filePosition][rxyIndex].result[j] = ci->result[j];
 
   }else{
     rxyIndex = 0;
+    signalsPerFile = NUMB_SIGNALS_PER_FILE;
     filePosition++;
     fclose(filePointer);
   }
@@ -185,7 +195,14 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
     pthread_exit (&statusWorkers[workerId]);
   }
 
+  size_t filePosition = ci->filePosition;
+  size_t numbSamples = ci->numbSamples;
 
+  for (size_t i = 0; i < numbSamples; i++){
+    calculatedResults[filePosition][rxyIndex].result[i] = ci->result[i];
+    //printf(" %i ", calculatedResults[filePosition][rxyIndex].result[i]);
+    //printf("\n");
+  }
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
   { 
@@ -198,6 +215,26 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 
 void printResults(){
   
+  bool isResultCorrect = true;
+  size_t i, j, x;
 
+  for (i = 0; i < numbFiles; i++)
+  {
+    for (j = 0; j < NUMB_SIGNALS_PER_FILE; j++)
+    {
+      for (x = 0; x < results[i][j].numbSamples; x++)
+      {
+        if (results[i][j].result[x] != calculatedResults[i][j].result[x])
+        {
+          printf("erro no ficheiro - %i\n", i);
+        }
+        
+      }
+      
+    }
+    
+  }
+  
+  free(calculatedResults);
   free(results);
 }
