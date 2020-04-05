@@ -1,9 +1,9 @@
 /**
  *  \file probConst.h (interface file)
  *
- *  \brief Problem name: First CLE Project
+ *  \brief Problem name: First CLE Project - Problem 1.
  *
- *  Problem simulation parameters.
+ *  Problem 1 parameters.
  *
  *  \author Francisco Gonçalves Tiago Lucas - March 2019
  */
@@ -14,12 +14,16 @@
 /* Generic parameters */
 
 /** \brief number of worker Threads */
-#define  NUMB_THREADS          1
+#define  NUMB_THREADS       4
 
 /** \brief number of bytes to be processed each iteration */
-#define  K           1024
+#define  K                  1024
 
-/** \brief number of bytes to be processed each iteration */
-#define  MAX_FILES           50
+/** \brief max number of files that can be processed */
+#define  MAX_FILES          50
+
+/** \brief max size of word */
+#define  MAX_SIZE_WORD      50
 
 #endif /* PROBCONST_H_ */
+
