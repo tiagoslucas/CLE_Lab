@@ -1,7 +1,6 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <wchar.h>
-#include <string.h>
 #include <stdlib.h>
 #include <locale.h>
 #include <stdbool.h>
@@ -59,14 +58,14 @@ int main (int argc, char *argv[]) {
             perror ("error on creating worker threads");
             exit (EXIT_FAILURE);
          }
-      pthread_exit(NULL);
       
       printf ("\nFinal report\n");
-      printResults();
+      
+      //printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
       printf ("\nElapsed time = %.6f s\n", t1 - t0);
-      exit (EXIT_SUCCESS);
+      //exit (EXIT_SUCCESS);
    }
    
 }
@@ -75,65 +74,78 @@ static void *processText(void *threadId) {
 
    unsigned int id = *((unsigned int *) threadId);
    unsigned char dataToBeProcessed[K+1];
-   //dataToBeProcessed = (unsigned char*) calloc(K+1, sizeof(unsigned char));
-   CONTROLINFO ci = (CONTROLINFO) {0};
+   CONTROLINFO ci = {0};
    
    while (getAPieceOfData (id, dataToBeProcessed, &ci))
    {
-        printf("\n %s", dataToBeProcessed);
         process(dataToBeProcessed, &ci);
         savePartialResults (id, &ci);
    }
 
-   //free(dataToBeProcessed); 
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 }
 
 void process(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
     char cha;
-    int counter = 0, size = 0, length = strlen(dataToBeProcessed);
-
+    bool inWord = true;
+    int skip, counter = 0, size = 0, length = ci->numbBytes, maxWordLength = ci->maxWordLength;
+    
     for (int i = 0; i < length; i++) {
-        if(dataToBeProcessed[i] == (char)0xC3)
-            i++;
-        else if(dataToBeProcessed[i] == (char)0xE2)
+    	skip = 0;
+        if((char)dataToBeProcessed[i] == (char)0xC3) {
+        	skip = 1;
+            i += 1;
+        } else if((char)dataToBeProcessed[i] == (char)0xE2) {
+        	skip = 2;
             i += 2;
+		}
 
         if (i >= length)
             return;
-        
         cha = dataToBeProcessed[i];
 
         if (cha >= 65 && cha <= 90) {
+        	if (cha == 65 || cha == 69 || cha == 73 || cha == 79 || cha == 85)
+        		counter++;
             size++;
+            inWord = true;
         } else if (cha >= 97 && cha <= 122) {
+        	if (cha == 97 || cha == 101 || cha == 105 || cha == 111 || cha == 117)
+        		counter++;
             size++;
-        } else if (cha == (char)0xA7 || cha == (char)0x87) {
-            size++;
-        } else if (cha == (char)0xA1 || cha == (char)0xA0 || cha == (char)0xA2 || cha == (char)0xA3 || cha == (char)0x81 || cha == (char)0x80 || cha == (char)0x82 || cha == (char)0x83) {
-            counter++;
-            size++;
-        } else if (cha == (char)0xA9 || cha == (char)0xA8 || cha == (char)0xAA || cha == (char)0x89 || cha == (char)0x88 || cha == (char)0x8A) {
-            counter++;
-            size++;
-        } else if (cha == (char)0xAD || cha == (char)0xAC || cha == (char)0x8D || cha == (char)0x8C) {
-            counter++;
-            size++;
-        } else if (cha == (char)0xB3 || cha == (char)0xB2 || cha == (char)0xB4 || cha == (char)0xB5 || cha == (char)0x93 || cha == (char)0x92 || cha == (char)0x94 || cha == (char)0x95){
-            counter++;
-            size++;
-        } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x94 || cha == (char)0x99) {
-            counter++;
-            size++;
-        }
-
-        if (isValidStopCharacter(cha)) {
+            inWord = true;
+        } else if (skip == 1) {
+			if (cha == (char)0xA7 || cha == (char)0x87) {
+	            size++;
+	        } else if (cha == (char)0xA1 || cha == (char)0xA0 || cha == (char)0xA2 || cha == (char)0xA3 || cha == (char)0x81 || cha == (char)0x80 || cha == (char)0x82 || cha == (char)0x83) {
+	            counter++;
+	            size++;
+	        } else if (cha == (char)0xA9 || cha == (char)0xA8 || cha == (char)0xAA || cha == (char)0x89 || cha == (char)0x88 || cha == (char)0x8A) {
+	            counter++;
+	            size++;
+	        } else if (cha == (char)0xAD || cha == (char)0xAC || cha == (char)0x8D || cha == (char)0x8C) {
+	            counter++;
+	            size++;
+	        } else if (cha == (char)0xB3 || cha == (char)0xB2 || cha == (char)0xB4 || cha == (char)0xB5 || cha == (char)0x93 || cha == (char)0x92 || cha == (char)0x94 || cha == (char)0x95) {
+	    		counter++;
+	            size++;
+	        } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x9A || cha == (char)0x99) {
+	            counter++;
+	            size++;
+	    	}
+			inWord = true;
+        } else if (isValidStopCharacter(cha) && inWord) {
             ci->bidi[size - 1][counter]++;
             ci->numbWords++;
-            counter = 0;
+            if (size > maxWordLength)
+            	maxWordLength = size;
             size = 0;
+            counter = 0;
+            inWord = false;
         }
     }
+    ci->maxWordLength = maxWordLength;
     printf("Processing end\n");
 }
+
