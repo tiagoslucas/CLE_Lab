@@ -20,6 +20,7 @@ void process(unsigned char*, CONTROLINFO*);
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
 
+int *status_p;
 
 /**
  *  \brief Main thread.
@@ -59,13 +60,12 @@ int main (int argc, char *argv[]) {
             }
         
         for (i = 0; i < NUMB_THREADS; i++)
-            if (pthread_join (threads_id[i], NULL) != 0){ 
+            if (pthread_join (threads_id[i], (void *) &status_p) != 0){ 
                 perror ("error on joining");
                 exit (EXIT_FAILURE);
             }
       
       printf ("\nFinal report\n");
-      
       printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
@@ -80,13 +80,12 @@ static void *processText(void *threadId) {
    unsigned int id = *((unsigned int *) threadId);
    unsigned char dataToBeProcessed[K+1];
    CONTROLINFO ci = {0};
-   
    while (getAPieceOfData (id, dataToBeProcessed, &ci))
    {
         process(dataToBeProcessed, &ci);
         savePartialResults (id, &ci);
    }
-
+    printf("left - %i\n", id);
    statusWorkers[id] = EXIT_SUCCESS;
    pthread_exit (&statusWorkers[id]);
 }
