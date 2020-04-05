@@ -22,7 +22,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <errno.h>
-#include <string.h>
 
 #include "probConst.h"
 #include "CONTROLINFO.h"
@@ -54,7 +53,7 @@ pthread_mutex_t accessR = PTHREAD_MUTEX_INITIALIZER;
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
 
-bool isValidStopCharacter(char);
+int isValidStopCharacter(char);
 
 /**
  *  \brief Initialization of the shared region.
@@ -64,12 +63,11 @@ bool isValidStopCharacter(char);
 
 void initialization (void)
 {
+  results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
   //CONTROLINFO aux = (CONTROLINFO) {0, 0, 0, {0}};
   //int i;
-  results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
   //for(i = 0; i < numbFiles; i++)
     //results[i] = aux;
-
   filePosition = 0;                                        /* shared region filePosition and byte pointer are both 0 */
   printf("Initialization complete\n");
 }
@@ -119,12 +117,11 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   if(filePointer == NULL)
     filePointer = fopen(filesToProcess[filePosition], "rb");
   
-  printf("Opened file\n");
   ci->filePosition = filePosition;
+  ci->numbWords = 0;
+  ci->maxWordLength = 0;
   
-  i = fread(&dataToBeProcessed, 1, K, filePointer);
-  printf("%i\n", i);
-  printf("%s\n", &dataToBeProcessed);
+  i = fread(dataToBeProcessed, 1, K, filePointer);
 
   if(i < K) {
     filePosition++;
@@ -133,12 +130,15 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   }else{
     aux = i;
     printf("entering loop\n");
-    while(!isValidStopCharacter(dataToBeProcessed[i-1]) && i > 0){
+    while(isValidStopCharacter(dataToBeProcessed[i-1]) == 0 && i > 0){
       i--;
     }
     if(i == 0)
       i = aux;
+    fseek(filePointer, i-K,SEEK_CUR);
   }
+  printf("read - %i bytes\n", i);
+  ci->numbBytes = i;
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)                                 /* exit monitor */
   {
@@ -148,8 +148,6 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
     pthread_exit (&statusWorkers[workerId]);
   }
   
-  ci->numbWords = 0;
-  ci->numbBytes = i;
   return true;
 }
 
@@ -177,13 +175,13 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   size_t filePosition = ci->filePosition;
   results[filePosition].numbBytes += ci->numbBytes;
   results[filePosition].numbWords += ci->numbWords;
+  printf("total numb words- %lu\n", results[filePosition].numbWords);
 
-  //mudar o 50 para variável de tamanho máx de palavra
-  for (size_t i = 0; i < 50; i++){
-    for (size_t j = 0; j < 50; j++){
-     results[filePosition].bidi[i][j] += ci->bidi[i][j];
+  for (size_t i = 0; i < ci->maxWordLength; i++){
+    for (size_t j = 0; j < ci->maxWordLength; j++){
+      results[filePosition].bidi[i][j] += ci->bidi[i][j];
     }
-  }
+  } 
   printf("Saving results end\n");
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
@@ -197,21 +195,51 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 
 void printResults(){
 
-  int i;
+  size_t x, y, i, max_len;
+  printf("Printing results\n");
+
   for (i = 0; i < numbFiles; i++){
+
+    max_len = results[i].maxWordLength;
+    
     printf("File name: %s\n", filesToProcess[i]);
-    printf("Total number of words: %ld\n", results[i].numbWords);
+    printf("Total number of words: %lu \n", results[i].numbWords);
     printf("Word length\n");
 
+    int numbWords[max_len];
+
+    for (x = 0; x < max_len; x++){
+      for (y = 0; y < max_len; y++){
+        numbWords[x] += results[i].bidi[y][x];
+        if(x == 0)
+          printf("\t%i\t", y+1);
+      }
+    }
+    printf("\n");
+    
+    for (x = 0; x < max_len+1; x++){
+      for (y = 0; y < max_len+1; y++){
+        if(x == 0)
+          printf("\t %f \t", (double) (numbWords[y]/max_len)*100);
+        else
+          printf("%i\t%f\t", (double) results[i].bidi[y][x]/numbWords[x] * 100);
+      }
+      printf("\n");
+    }
   }
   
   free(results);
 }
 
-bool isValidStopCharacter(char character) {
-    char separation[19] = { (char)0x20, (char)0x9, (char)0xA, '-', '"', '(', ')', '[', ']', '.', ',', ':', ';', '?', '!', (char)0x9C, (char)0x9D, (char)0x93, (char)0xA6 };
-    for (int x = 0; x < 15; x++)
-        if (character == separation[x])
-            return true;
-    return false;
+int isValidStopCharacter(char character) {
+  char separation[15] = { (char)0x20, (char)0x9, (char)0xA, '-', '"', '(', ')', '[', ']', '.', ',', ':', ';', '?', '!' };
+  char separation3[4] = { (char)0x9C, (char)0x9D, (char)0x93, (char)0xA6 };
+  int x;
+  for (x = 0; x < 15; x++)
+    if (character == separation[x])
+      return 1;
+  for (x = 0; x < 4; x++)
+    if (character == separation3[x])
+      return 3;
+  return 0;
 }
