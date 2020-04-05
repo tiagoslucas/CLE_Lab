@@ -33,7 +33,7 @@
 extern void presentDataFileNames(char *listOfFiles[], unsigned int size);
 
 
-extern bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci);
+extern bool getAPieceOfData(unsigned int workerId, unsigned char* dataToBeProcessed, CONTROLINFO* ci);
 
 /**
  *  \brief Get a value from the data transfer region.
@@ -63,6 +63,6 @@ extern void printResults(void);
  *
  */
 
-extern bool isValidStopCharacter(char character);
+extern int isValidStopCharacter(char character);
 
 #endif /* SHAREDREGION_H */

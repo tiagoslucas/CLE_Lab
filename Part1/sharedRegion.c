@@ -69,7 +69,7 @@ void initialization (void)
   //for(i = 0; i < numbFiles; i++)
     //results[i] = aux;
   filePosition = 0;                                        /* shared region filePosition and byte pointer are both 0 */
-  printf("Initialization complete\n");
+  filePointer = NULL;
 }
 
 
@@ -98,19 +98,19 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
  *  \param val value to be stored
  */
 
-bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
+bool getAPieceOfData(unsigned int workerId, unsigned char* dataToBeProcessed, CONTROLINFO *ci)
 {
   if(filePosition == numbFiles)
     return false;
 
-  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0)                                   /* enter monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0)
   { 
-    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    errno = statusWorkers[workerId];
     perror ("error on entering monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  pthread_once (&init, initialization);                                              /* internal data initialization */
+  pthread_once (&init, initialization);
 
   size_t i, aux;
   
@@ -120,16 +120,15 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
   ci->filePosition = filePosition;
   ci->numbWords = 0;
   ci->maxWordLength = 0;
-  
-  i = fread(dataToBeProcessed, 1, K, filePointer);
+
+  i = fread(dataToBeProcessed, sizeof(char), K, filePointer);
 
   if(i < K) {
     filePosition++;
     fclose(filePointer);
     filePointer = NULL;
-  }else{
+  } else {
     aux = i;
-    printf("entering loop\n");
     while(isValidStopCharacter(dataToBeProcessed[i-1]) == 0 && i > 0){
       i--;
     }
@@ -137,17 +136,15 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
       i = aux;
     fseek(filePointer, i-K,SEEK_CUR);
   }
-  printf("read - %i bytes\n", i);
   ci->numbBytes = i;
 
-  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)                                 /* exit monitor */
+  if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)
   {
-    errno = statusWorkers[workerId];                                                            /* save error in errno */
+    errno = statusWorkers[workerId];
     perror ("error on exiting monitor(CF)");
     statusWorkers[workerId] = EXIT_FAILURE;
     pthread_exit (&statusWorkers[workerId]);
   }
-  
   return true;
 }
 
@@ -175,14 +172,12 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   size_t filePosition = ci->filePosition;
   results[filePosition].numbBytes += ci->numbBytes;
   results[filePosition].numbWords += ci->numbWords;
-  printf("total numb words- %lu\n", results[filePosition].numbWords);
 
   for (size_t i = 0; i < ci->maxWordLength; i++){
     for (size_t j = 0; j < ci->maxWordLength; j++){
       results[filePosition].bidi[i][j] += ci->bidi[i][j];
     }
-  } 
-  printf("Saving results end\n");
+  }
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
   { 
@@ -196,7 +191,6 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 void printResults(){
 
   size_t x, y, i, max_len;
-  printf("Printing results\n");
 
   for (i = 0; i < numbFiles; i++){
 
@@ -212,19 +206,19 @@ void printResults(){
       for (y = 0; y < max_len; y++){
         numbWords[x] += results[i].bidi[y][x];
         if(x == 0)
-          printf("\t%i\t", y+1);
+          ;//printf("\t%i\t", y+1);
       }
     }
-    printf("\n");
+    //printf("\n");
     
     for (x = 0; x < max_len+1; x++){
       for (y = 0; y < max_len+1; y++){
         if(x == 0)
-          printf("\t %f \t", (double) (numbWords[y]/max_len)*100);
+          ;//printf("\t %f \t", (double) (numbWords[y]/max_len)*100);
         else
-          printf("%i\t%f\t", (double) results[i].bidi[y][x]/numbWords[x] * 100);
+          ;//printf("%i\t%f\t", (double) results[i].bidi[y][x]/numbWords[x] * 100);
       }
-      printf("\n");
+      ;//printf("\n");
     }
   }
   

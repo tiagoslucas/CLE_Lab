@@ -6,8 +6,8 @@
 typedef struct
 {
    size_t filePosition;
-   size_t numbBytes;
    size_t numbWords;
+   size_t numbBytes;
    size_t maxWordLength;
    int bidi[50][50];
 }CONTROLINFO;
