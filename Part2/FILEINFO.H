@@ -7,9 +7,9 @@
 
 typedef struct
 {
-   bool processed;
    size_t filePosition;
    size_t numbSamples;
+   size_t rxyIndex;
    double result[DEFAULT_SIZE_SIGNAL];
    double expected[DEFAULT_SIZE_SIGNAL];
 } FILEINFO;
