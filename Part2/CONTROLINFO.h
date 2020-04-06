@@ -7,7 +7,7 @@
 
 typedef struct
 {
-   bool initial;
+   bool processing;
    size_t filePosition;
    size_t numbSamples;
    size_t rxyIndex;
