@@ -129,35 +129,41 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     size_t samples;
     size_t i = fread(&samples, sizeof(int), 1, filePointer);
 
-    if(samples > ci->numbSamples){
-      x = (double*)malloc(sizeof(double)*samples);
-      y = (double*)malloc(sizeof(double)*samples);
-    }
-    
     ci->numbSamples = samples;
     ci->filePosition = filePosition;
     ci->processing = true;
     ci->rxyIndex = 0;
-
-    double temp[samples];
     
+    if(samples > ci->numbSamples){
+      x = (double*)malloc(sizeof(double)*samples);
+      y = (double*)malloc(sizeof(double)*samples);
+    }
 
     FILEINFO f ;
     fread(x, sizeof(double), samples, filePointer);
     fread(y, sizeof(double), samples, filePointer);
-    fread(temp, sizeof(double), samples, filePointer);
+
+    if(filesManager[filePosition].read == false){
+      double real[samples];
+      fread(real, sizeof(double), samples, filePointer);
+      f.read = true;
+      f.rxyIndex = 0;
+      f.filePosition = filePosition;
+      f.numbSamples = ci->numbSamples;
+      filesManager[filePosition] = f;   
+      printf("value - %f\n", real[0]);
+      if(samples > DEFAULT_SIZE_SIGNAL){
+        resultsMatrix[filePosition] = (double*)realloc(resultsMatrix[filePosition], samples*sizeof(double));
+        calculatedResultsMatrix[filePosition] = (double*)realloc(resultsMatrix[filePosition], samples*sizeof(double));
+      }
+      for (size_t t = 0; t < samples; t++){
+        resultsMatrix[filePosition][t] = real[t];
+      }
+      filePosition++;
+
+    }
+    
     fclose(filePointer);
-
-    f.rxyIndex = 0;
-    f.filePosition = filePosition;
-    f.numbSamples = ci->numbSamples;
-    filesManager[filePosition] = f;
-    printf("value - %f\n", temp[0]);
-
-    /*for (size_t t = 0; t < samples; t++)
-    {
-      resultsMatrix[t][filePosition] = temp[t];
-    }*/
     
     
   }
@@ -200,13 +206,9 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   ci->rxyIndex = filesManager[ci->filePosition].rxyIndex;
   ci->result = 0;
   if(filesManager[ci->filePosition].rxyIndex == filesManager[ci->filePosition].numbSamples){
-    filePosition++;
-    ci->filePosition = filePosition;
+    ci->filePosition++;
     ci->processing = false;
   }
-  
-  
-
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
   { 
