@@ -107,7 +107,7 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
   }
   pthread_once (&init, initialization);                                              /* internal data initialization */
   
-  if(filePosition == numbFiles && results[filePosition].processed==true){
+  if(filePosition == numbFiles){
     if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0){                                 /* exit monitor */
     errno = statusWorkers[workerId];                                                            /* save error in errno */
     perror ("error on exiting monitor(CF)");
@@ -116,12 +116,12 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     }
     return false;
   }
-
-  if(results[ci->filePosition].processed ){
-    
-    filePointer = fopen(filesToProcess[filePosition], "r");
+  
+  if(filePointer == NULL && ci->filePosition != filePosition){
+    filePointer = fopen(filesToProcess[filePosition], "rb");
     size_t samples;
     size_t i = fread(&samples, sizeof(int), 1, filePointer);
+    printf("samples - %i\n", samples);
     ci->rxyIndex = 0;
     ci->numbSamples = samples;
 
@@ -146,13 +146,12 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     
     results[filePosition].filePosition = filePosition;
     results[filePosition].numbSamples = ci->numbSamples;
-    results[filePosition].processed = false;
-    filePosition++;
+    ci->filePosition = filePosition;
+    ci->initial = false;
 
-    printf("X - %f\t Y - %f\t R - %f\n", x[0], y[0], f->expected[0]);
-
+    printf("X - %f\tY - %f\tR - %f\n", &x[0], &y[0], &f->expected[0]);
   }
-  ci->result = 0;
+
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessF)) != 0)                                 /* exit monitor */
   {
@@ -187,10 +186,12 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   }
 
 
-  results[ci->filePosition].result[ci->rxyIndex] = ci->result;
-  ci->rxyIndex++;
-  if(ci->rxyIndex == results[ci->filePosition].numbSamples)
-    results[ci->filePosition].processed = true;
+  results[filePosition].result[ci->rxyIndex] = ci->result;
+  results[filePosition].rxyIndex++;
+
+  if(results[ci->filePosition].rxyIndex == results[ci->filePosition].numbSamples)
+    filePosition++;
+  ci->result = 0;
 
 
   if ((statusWorkers[workerId] = pthread_mutex_unlock (&accessR)) != 0)                                   /* exit monitor */
@@ -211,9 +212,7 @@ void printResults(){
     for (x = 0; x < results[i].numbSamples; x++){
       if (results[i].result[x] != results[i].expected[x]) {
           numbErrors++;
-          printf("Error on file - %s.\n", filesToProcess[i]);
       }
-        
     }
     if(numbErrors==0)
       printf("File %s was calculated correctly.\n", filesToProcess[i]);
