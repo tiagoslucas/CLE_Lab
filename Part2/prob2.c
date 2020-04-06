@@ -86,7 +86,7 @@ static void *process(void *threadId) {
    ci.rxyIndex = 0;
    while (getAPieceOfData (id, x, y, &ci))
    { 
-      printf("X - %f\t Y - %f\t\n", x[0], y[0]);
+      //printf("loopX - %f\t Y - %f\t\n", x[0], y[0]);
       circularCrossCorrelation(x, y, &ci);
       savePartialResults (id, &ci);
    }
@@ -101,14 +101,13 @@ void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
    size_t i, j;
    int n = ci->numbSamples;
    
-   printf("RXYINDEX - %f\t SAMPLES - %f\n", ci->rxyIndex, n);
+   //printf("RXYINDEX - %f\t SAMPLES - %f\n", ci->rxyIndex, n);
    int temp = ci->rxyIndex; 
-   double aux[n];
    for (i = 0; i <= temp; i++){
       for(j = 0; j < n; j++){
           ci->result += x[j] * y[(i+j)%n];
       }
    }
-   printf("result - %f\n", ci->result);
+   //printf("result - %f\n", ci->result);
    
 }
