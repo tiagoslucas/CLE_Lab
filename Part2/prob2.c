@@ -82,7 +82,6 @@ static void *process(void *threadId) {
    double x[DEFAULT_SIZE_SIGNAL];
    double y[DEFAULT_SIZE_SIGNAL];
    CONTROLINFO ci = (CONTROLINFO) {0};
-   ci.rxyIndex = 0;
    ci.filePosition = -1;
    ci.processing = false;
    while (getAPieceOfData (id, x, y, &ci))
@@ -104,8 +103,5 @@ void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
 
    for(j = 0; j < n; j++){
       ci->result += x[j] * y[(temp+j)%n];
-   }
-   if(temp == 0){
-      printf("samples - %i\trxy - %i\tresult - %f\n", n,temp,ci->result);
    }
 }

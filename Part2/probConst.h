@@ -14,13 +14,13 @@
 /* Generic parameters */
 
 /** \brief number of worker Threads */
-#define  NUMB_THREADS          1
+#define  NUMB_THREADS          2
 
 /** \brief max number of files that can be processed  */
 #define  MAX_FILES           50
 
 /** \brief standard number of signals per each file */
-#define  DEFAULT_SIZE_SIGNAL      5000
+#define  DEFAULT_SIZE_SIGNAL      70000
 
 
 #endif /* PROBCONST_H_ */

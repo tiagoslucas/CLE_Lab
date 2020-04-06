@@ -34,12 +34,8 @@ extern int statusWorkers[NUMB_THREADS];
 /** \brief names of files to process */
 char* filesToProcess[MAX_FILES];
 
-/** \brief array of results read for each file file */
+/** \brief array with information for each file file */
 FILEINFO *filesManager;
-
-double **resultsMatrix;
-
-double **calculatedResultsMatrix;
 
 /** \brief number of files to process */
 unsigned int numbFiles;
@@ -71,8 +67,6 @@ void initialization (void)
 {
   filePosition = 0;                                        /* shared region filepointer and byte pointer are both 0 */
   filesManager = (FILEINFO*)malloc(sizeof(FILEINFO)*numbFiles);
-  resultsMatrix = malloc(numbFiles*DEFAULT_SIZE_SIGNAL*sizeof(double));
-  calculatedResultsMatrix = malloc(numbFiles*DEFAULT_SIZE_SIGNAL*sizeof(double));
   filePointer = NULL;
 }
 
@@ -128,43 +122,36 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     filePointer = fopen(filesToProcess[filePosition], "rb");
     size_t samples;
     size_t i = fread(&samples, sizeof(int), 1, filePointer);
+    
+    /*if(samples > ci->numbSamples){
+      x = (double*)realloc(x,sizeof(double)*samples);
+      y = (double*)realloc(y,sizeof(double)*samples);
+    }*/
 
     ci->numbSamples = samples;
     ci->filePosition = filePosition;
     ci->processing = true;
     ci->rxyIndex = 0;
-    
-    if(samples > ci->numbSamples){
-      x = (double*)malloc(sizeof(double)*samples);
-      y = (double*)malloc(sizeof(double)*samples);
-    }
 
-    FILEINFO f ;
     fread(x, sizeof(double), samples, filePointer);
     fread(y, sizeof(double), samples, filePointer);
 
     if(filesManager[filePosition].read == false){
+
       double real[samples];
       fread(real, sizeof(double), samples, filePointer);
-      f.read = true;
-      f.rxyIndex = 0;
-      f.filePosition = filePosition;
-      f.numbSamples = ci->numbSamples;
-      filesManager[filePosition] = f;   
-      printf("value - %f\n", real[0]);
-      if(samples > DEFAULT_SIZE_SIGNAL){
-        resultsMatrix[filePosition] = (double*)realloc(resultsMatrix[filePosition], samples*sizeof(double));
-        calculatedResultsMatrix[filePosition] = (double*)realloc(resultsMatrix[filePosition], samples*sizeof(double));
-      }
+      filesManager[filePosition].read = true;
+      filesManager[filePosition].rxyIndex = 0;
+      filesManager[filePosition].filePosition = filePosition;
+      filesManager[filePosition].numbSamples = samples;
+
       for (size_t t = 0; t < samples; t++){
-        resultsMatrix[filePosition][t] = real[t];
+        filesManager[filePosition].expected[t]= real[t];
       }
-      filePosition++;
 
     }
     
     fclose(filePointer);
-    
     
   }
 
@@ -201,11 +188,12 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
     pthread_exit (&statusWorkers[workerId]);
   }
 
-  calculatedResultsMatrix[ci->filePosition][ci->rxyIndex] = ci->result;
+  filesManager[ci->filePosition].result[ci->rxyIndex] = ci->result;
   filesManager[ci->filePosition].rxyIndex++;
   ci->rxyIndex = filesManager[ci->filePosition].rxyIndex;
   ci->result = 0;
   if(filesManager[ci->filePosition].rxyIndex == filesManager[ci->filePosition].numbSamples){
+    filePosition++;
     ci->filePosition++;
     ci->processing = false;
   }
@@ -226,9 +214,8 @@ void printResults(){
   for (i = 0; i < numbFiles; i++){
     numbErrors = 0;
     for (x = 0; x < filesManager[i].numbSamples; x++){
-      if (resultsMatrix[i][x] != calculatedResultsMatrix[i][x]) {
+      if (filesManager[i].expected[x] != filesManager[i].result[x]) {
           numbErrors++;
-          printf("x- %i,y- %i\nmine-%f\treal %f\n",i,x, resultsMatrix[i][x], calculatedResultsMatrix[i][x]);
       }
     }
     if(numbErrors==0)
@@ -237,7 +224,5 @@ void printResults(){
       printf("File %s had %i errors in total.\n", filesToProcess[i], numbErrors);
   }
   
-  free(resultsMatrix);
-  free(calculatedResultsMatrix);
   free(filesManager);
 }
