@@ -117,7 +117,7 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     return false;
   }
 
-  if(ci->filePosition != filePosition && !ci->processing){
+  if(!ci->processing){
     
     filePointer = fopen(filesToProcess[filePosition], "rb");
     size_t samples;
@@ -188,6 +188,7 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
     pthread_exit (&statusWorkers[workerId]);
   }
 
+  //printf("POS: %i, INDEX: %i, RESULT: %f\n",ci->filePosition, ci->rxyIndex, ci->result);
   filesManager[ci->filePosition].result[ci->rxyIndex] = ci->result;
   filesManager[ci->filePosition].rxyIndex++;
   ci->rxyIndex = filesManager[ci->filePosition].rxyIndex;

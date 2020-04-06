@@ -14,7 +14,7 @@
 /* Generic parameters */
 
 /** \brief number of worker Threads */
-#define  NUMB_THREADS          2
+#define  NUMB_THREADS          4
 
 /** \brief max number of files that can be processed  */
 #define  MAX_FILES           50

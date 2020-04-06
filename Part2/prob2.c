@@ -21,6 +21,7 @@ void circularCrossCorrelation(double*, double*, CONTROLINFO*);
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
 
+int *status_p;
 
 /**
  *  \brief Main thread.
@@ -60,7 +61,7 @@ int main (int argc, char *argv[]) {
          }
         
       for (i = 0; i < NUMB_THREADS; i++)
-         if (pthread_join (threads_id[i], NULL) != 0){ 
+         if (pthread_join (threads_id[i], (void *)&status_p) != 0){ 
             perror ("error on joining");
             exit (EXIT_FAILURE);
          }
