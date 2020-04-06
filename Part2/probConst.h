@@ -20,10 +20,7 @@
 #define  MAX_FILES           50
 
 /** \brief standard number of signals per each file */
-#define  NUMB_SIGNALS_PER_FILE      50
-
-/** \brief standard number of signals per each file */
-#define  STANDARD_SIZE_SIGNAL      1024
+#define  DEFAULT_SIZE_SIGNAL      5000
 
 
 #endif /* PROBCONST_H_ */

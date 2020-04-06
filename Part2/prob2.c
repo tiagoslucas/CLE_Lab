@@ -12,6 +12,7 @@
 #include "probConst.h"
 #include "sharedRegion.h"
 
+
 /** \brief workerThread life cycle routine */
 static void *process (void *id);
 
@@ -20,11 +21,13 @@ void circularCrossCorrelation(double*, double*, CONTROLINFO*);
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
 
+
 /**
  *  \brief Main thread.
  *
  *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
  */
+
 int main (int argc, char *argv[]) {
 
    if(argc < 2)
@@ -32,6 +35,7 @@ int main (int argc, char *argv[]) {
       printf("Please insert text files to be processed as arguments!");
       exit(EXIT_FAILURE);
    }
+
    else
    {
       double t0, t1;
@@ -46,6 +50,8 @@ int main (int argc, char *argv[]) {
 
       t0 = ((double) clock ()) / CLOCKS_PER_SEC;
       presentDataFileNames(argv + 1, --argc);
+
+      //srandom ((unsigned int) getpid());
 
       for (i = 0; i < NUMB_THREADS; i++)
          if (pthread_create (&threads_id[i], NULL, process, &worker_threads[i]) != 0){ 
@@ -71,13 +77,16 @@ int main (int argc, char *argv[]) {
 }
 
 static void *process(void *threadId) {
+
    unsigned int id = *((unsigned int *) threadId);
    double x[DEFAULT_SIZE_SIGNAL];
    double y[DEFAULT_SIZE_SIGNAL];
    CONTROLINFO ci = (CONTROLINFO) {0};
    ci.initial = true;
-   while (getAPieceOfData (id, &x, y, &ci))
-   {
+   ci.rxyIndex = 0;
+   while (getAPieceOfData (id, x, y, &ci))
+   { 
+      printf("X - %f\t Y - %f\t\n", x[0], y[0]);
       circularCrossCorrelation(x, y, &ci);
       savePartialResults (id, &ci);
    }
@@ -91,12 +100,15 @@ void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
 
    size_t i, j;
    int n = ci->numbSamples;
+   
+   printf("RXYINDEX - %f\t SAMPLES - %f\n", ci->rxyIndex, n);
    int temp = ci->rxyIndex; 
    double aux[n];
-   for (i = 0; i < temp; i++){
+   for (i = 0; i <= temp; i++){
       for(j = 0; j < n; j++){
-          aux[i] += x[j] * y[(i+j)%n];
+          ci->result += x[j] * y[(i+j)%n];
       }
    }
-   memcpy(ci->result, aux, sizeof(double)*n);
+   printf("result - %f\n", ci->result);
+   
 }
