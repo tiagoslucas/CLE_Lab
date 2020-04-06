@@ -105,6 +105,7 @@ void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
    for(j = 0; j < n; j++){
       ci->result += x[j] * y[(temp+j)%n];
    }
-   if(temp == 0)
-      printf("result - %f\n", ci->result);
+   if(temp == 0){
+      printf("samples - %i\trxy - %i\tresult - %f\n", n,temp,ci->result);
+   }
 }
