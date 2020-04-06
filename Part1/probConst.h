@@ -5,7 +5,7 @@
  *
  *  Problem 1 parameters.
  *
- *  \author Francisco GonÃ§alves Tiago Lucas - March 2019
+ *  \author Francisco Gonçalves Tiago Lucas - April 2020
  */
 
 #ifndef PROBCONST_H_

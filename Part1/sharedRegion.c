@@ -1,19 +1,9 @@
 /**
- *  \file fifo.c (implementation file)
+ *  \file sharedRegion.c (implementation file)
  *
- *  \brief Problem name: Producers / Consumers.
+ *  \brief Problem name: Problem 1.
  *
- *  Synchronization based on monitors.
- *  Both threads and the monitor are implemented using the pthread library which enables the creation of a
- *  monitor of the Lampson / Redell type.
- *
- *  Data transfer region implemented as a monitor.
- *
- *  Definition of the operations carried out by the producers / consumers:
- *     \li putVal
- *     \li getVal.
- *
- *  \author Francisco GonÃ§alves and Tiago Lucas - March 2019
+ *  \author Francisco Gonçalves and Tiago Lucas - April 2019
  */
 
 #include <stdio.h>
@@ -63,7 +53,6 @@ int isValidStopCharacter(char);
  *
  *  Internal monitor operation.
  */
-
 void initialization (void)
 {
   results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
@@ -75,7 +64,7 @@ void initialization (void)
 /**
  *  \brief Insert the names of the files to be processed in an array.
  *
- *  Operation carried out by main.
+ *  Operation carried out by the main thread.
  *
  *  \param listOfFiles names of files to process
  *  \param size number of text files to be processed
@@ -89,14 +78,15 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 
 
 /**
- *  \brief Store a value in the data transfer region.
+ *  \brief Get data from the files.
  *
- *  Operation carried out by the producers.
+ *  Operation carried out by the worker threads.
  *
- *  \param prodId producer identification
- *  \param val value to be stored
+ *  \param workerId				identification
+ *  \param *dataToBeProcessed	pointer to the array with the data to process.
+ *  \param *ci					pointer to the shared data structure.
+ *
  */
-
 bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CONTROLINFO *ci)
 {
 
@@ -152,13 +142,13 @@ bool getAPieceOfData(unsigned int workerId, unsigned char *dataToBeProcessed, CO
 /**
  *  \brief Get a value from the data transfer region.
  *
- *  Operation carried out by the consumers.
+ *  Operation carried out by the main thread.
  *
- *  \param consId consumer identification
+ *  \param workerId identification
+ *  \param *ci		pointer to the shared data structure
  *
  *  \return value
  */
-
 void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 {                                                                          
 
@@ -191,6 +181,13 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   }
 }
 
+
+/**
+ *  \brief Print the results of each file.
+ *
+ *  Operation carried out by main thread.
+ *
+ */
 void printResults(){
 
   size_t x, y, i, max_len;
@@ -241,6 +238,16 @@ void printResults(){
   free(results);
 }
 
+/**
+ *  \brief Validate if a character is a stop character.
+ *
+ *  Operation carried out by all threads.
+ *
+ * \param character		character to which the validation is done.
+ *
+ * \return 				0 if the character provided is not a stop character, otherwise is the number of bytes the character should have. Can be used as true/false.
+ *
+ */
 int isValidStopCharacter(char character) {
   char separation[15] = { (char)0x20, (char)0x9, (char)0xA, '-', '"', '(', ')', '[', ']', '.', ',', ':', ';', '?', '!' };
   char separation3[4] = { (char)0x9C, (char)0x9D, (char)0x93, (char)0xA6 };

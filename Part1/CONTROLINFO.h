@@ -1,3 +1,13 @@
+/**
+ *  \file CONTROLINFO.h (interface file)
+ *
+ *  \brief Problem name: Problem 1.
+ *
+ *  File with the data shared accross all threads.
+ *
+ *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ */
+ 
 #ifndef CONTROLINFO_H
 #define CONTROLINFO_H
 

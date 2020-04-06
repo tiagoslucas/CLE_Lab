@@ -1,3 +1,13 @@
+/**
+ *  \file prob1.c (implementation file)
+ *
+ *  \brief Problem name: First CLE Project - Problem 1.
+ *
+ *  Main thread of problem 1.
+ *
+ *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ */
+
 #include <pthread.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -15,11 +25,13 @@
 /** \brief workerThread life cycle routine */
 static void *processText (void *id);
 
+/** \brief Result creation and storage */
 void process(unsigned char*, CONTROLINFO*);
 
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
 
+/** \brief worker threads response */
 int *status_p;
 
 /**
@@ -30,27 +42,21 @@ int *status_p;
 
 int main (int argc, char *argv[]) {
 
-   if(argc < 2)
-   {
+   if(argc < 2) {
       printf("Please insert text files to be processed as arguments!");
       exit(EXIT_FAILURE);
-   }
-   else
-   {
+   } else {
         double t0, t1;
         int i;
       
         unsigned int worker_threads[NUMB_THREADS];
         pthread_t threads_id[NUMB_THREADS];
-
-
+        
         for (i = 0; i < NUMB_THREADS; i++)
             worker_threads[i] = i;
 
         t0 = ((double) clock ()) / CLOCKS_PER_SEC;
-
         presentDataFileNames(argv + 1, --argc);
-        //srandom ((unsigned int) getpid());
 
         for (i = 0; i < NUMB_THREADS; i++)
             if (pthread_create (&threads_id[i], NULL, processText, &worker_threads[i]) != 0){ 
