@@ -137,16 +137,15 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
 
   if(i == 1){
 
+    ci->numbSamples = samples;
     ci->rxyIndex = rxyIndex;
     size_t j;
     rxyIndex++;
-
     if(!ci->initial){
-      if(samples > ci->numbSamples){
+      if(j > ci->numbSamples){
         x = (double*)realloc(x, sizeof(double)*samples);
         y = (double*)realloc(y, sizeof(double)*samples);
         ci->result = (double*)realloc(ci->result, sizeof(double)*samples);
-        ci->numbSamples = samples;
       }
     }else{
       x = (double*)malloc(sizeof(double)*samples);
@@ -154,30 +153,26 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
       ci->result = (double*)malloc(sizeof(double)*samples);
     }
 
-    double *temp = ci->result;
     printf("Number of samples - %i\n", samples);
     fread(x, sizeof(double), samples, filePointer);
     fread(y, sizeof(double), samples, filePointer);
-    printf("tester\n");
-    fread(temp, sizeof(double), samples, filePointer);
-    printf("tester2\n");
+    fread(ci->result, sizeof(double), samples, filePointer);
+    
+    //printf("values\n");
+    //printf("X- %f \n", x[0]);
+    //printf("Y- %f\n", &y[0]);
 
-    if(rxyIndex > signalsPerFile[filePosition]){ 
+    /*if(rxyIndex > signalsPerFile[filePosition]){ 
       printf("Increasing size of results\n");
       calculatedResults[filePosition] = (CONTROLINFO*)realloc(results[filePosition],rxyIndex*sizeof(CONTROLINFO));
       results[filePosition] = (CONTROLINFO*)realloc(results[filePosition],rxyIndex*sizeof(CONTROLINFO));
       signalsPerFile[filePosition] = rxyIndex;
     }
-
     for(j = 0; j < samples; j++){
-      results[filePosition][rxyIndex].result = (double*)malloc(sizeof(double)*samples);
-      printf("worked1/n");
-      results[filePosition][rxyIndex].result[j] = ci->result[j];
-      printf("worked2/n");
-      if(j==0){
-        printf("%f\n", temp[j]);
-      }
-    }
+      //printf("bro\n");
+      printf("%f\n", results[filePosition][rxyIndex].result[j]);
+      //results[filePosition][rxyIndex].result[j] = ci.result;
+    }*/
 
   }else{
     signalsPerFile[filePosition] = rxyIndex;

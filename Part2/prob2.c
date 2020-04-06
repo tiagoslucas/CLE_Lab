@@ -12,7 +12,6 @@
 #include "probConst.h"
 #include "sharedRegion.h"
 
-
 /** \brief workerThread life cycle routine */
 static void *process (void *id);
 
@@ -21,13 +20,11 @@ void circularCrossCorrelation(double*, double*, CONTROLINFO*);
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
 
-
 /**
  *  \brief Main thread.
  *
  *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
  */
-
 int main (int argc, char *argv[]) {
 
    if(argc < 2)
@@ -35,7 +32,6 @@ int main (int argc, char *argv[]) {
       printf("Please insert text files to be processed as arguments!");
       exit(EXIT_FAILURE);
    }
-
    else
    {
       double t0, t1;
@@ -51,8 +47,6 @@ int main (int argc, char *argv[]) {
       t0 = ((double) clock ()) / CLOCKS_PER_SEC;
       presentDataFileNames(argv + 1, --argc);
 
-      //srandom ((unsigned int) getpid());
-
       for (i = 0; i < NUMB_THREADS; i++)
          if (pthread_create (&threads_id[i], NULL, process, &worker_threads[i]) != 0){ 
             perror ("error on creating worker threads");
@@ -67,7 +61,7 @@ int main (int argc, char *argv[]) {
 
       
       printf ("\nFinal report\n");
-      //printResults();
+      printResults();
 
       t1 = ((double) clock ()) / CLOCKS_PER_SEC;
       printf ("\nElapsed time = %.6f s\n", t1 - t0);
@@ -77,14 +71,13 @@ int main (int argc, char *argv[]) {
 }
 
 static void *process(void *threadId) {
-
    unsigned int id = *((unsigned int *) threadId);
    double x[DEFAULT_SIZE_SIGNAL];
    double y[DEFAULT_SIZE_SIGNAL];
    CONTROLINFO ci = (CONTROLINFO) {0};
    ci.initial = true;
-   while (getAPieceOfData (id, x, y, &ci))
-   { 
+   while (getAPieceOfData (id, &x, y, &ci))
+   {
       circularCrossCorrelation(x, y, &ci);
       savePartialResults (id, &ci);
    }
