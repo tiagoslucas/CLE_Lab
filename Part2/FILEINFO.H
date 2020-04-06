@@ -7,6 +7,7 @@
 
 typedef struct
 {
+   bool read;
    size_t filePosition;
    size_t numbSamples;
    size_t rxyIndex;
