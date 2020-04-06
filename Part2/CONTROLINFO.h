@@ -11,7 +11,7 @@ typedef struct
    size_t filePosition;
    size_t numbSamples;
    size_t rxyIndex;
-   double *result;
+   double result;
 } CONTROLINFO;
 
 #endif /* end of include guard: CONTROLINFO_H */
