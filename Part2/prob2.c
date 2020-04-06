@@ -1,3 +1,13 @@
+/**
+ *  \file prob2.c (implementation file)
+ *
+ *  \brief Problem name: First CLE Project - Problem 2.
+ *
+ *  Main thread of problem 2.
+ *
+ *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ */
+
 #include <pthread.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -16,11 +26,13 @@
 /** \brief workerThread life cycle routine */
 static void *process (void *id);
 
+/** \brief Result creation and storage */
 void circularCrossCorrelation(double*, double*, CONTROLINFO*);
 
 /** \brief worker threads return status array */
 int statusWorkers[NUMB_THREADS];
 
+/** \brief worker threads response */
 int *status_p;
 
 /**
@@ -51,8 +63,6 @@ int main (int argc, char *argv[]) {
 
       t0 = ((double) clock ()) / CLOCKS_PER_SEC;
       presentDataFileNames(argv + 1, --argc);
-
-      //srandom ((unsigned int) getpid());
 
       for (i = 0; i < NUMB_THREADS; i++)
          if (pthread_create (&threads_id[i], NULL, process, &worker_threads[i]) != 0){ 

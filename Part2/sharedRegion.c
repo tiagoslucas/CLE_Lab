@@ -1,21 +1,10 @@
 /**
- *  \file fifo.c (implementation file)
+ *  \file sharedRegion.c (implementation file)
  *
- *  \brief Problem name: Producers / Consumers.
+ *  \brief Problem name: Problem 2.
  *
- *  Synchronization based on monitors.
- *  Both threads and the monitor are implemented using the pthread library which enables the creation of a
- *  monitor of the Lampson / Redell type.
- *
- *  Data transfer region implemented as a monitor.
- *
- *  Definition of the operations carried out by the producers / consumers:
- *     \li putVal
- *     \li getVal.
- *
- *  \author Francisco Gonçalves and Tiago Lucas - March 2019
+ *  \author Francisco Gonçalves and Tiago Lucas - April 2019
  */
-
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -55,14 +44,11 @@ pthread_mutex_t accessR = PTHREAD_MUTEX_INITIALIZER;
 /** \brief flag which warrants that the data transfer region is initialized exactly once */
 pthread_once_t init = PTHREAD_ONCE_INIT;
 
-bool isValidStopCharacter(char);
-
 /**
  *  \brief Initialization of the shared region.
  *
  *  Internal monitor operation.
  */
-
 void initialization (void)
 {
   filePosition = 0;                                        /* shared region filepointer and byte pointer are both 0 */
@@ -74,12 +60,11 @@ void initialization (void)
 /**
  *  \brief Insert the names of the files to be processed in an array.
  *
- *  Operation carried out by main.
+ *  Operation carried out by the main thread.
  *
  *  \param listOfFiles names of files to process
  *  \param size number of text files to be processed
  */
-
 void presentDataFileNames(char *listOfFiles[], unsigned int size){
   numbFiles = size;
   for(int i = 0; i < size; i++)
@@ -90,12 +75,13 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
 /**
  *  \brief Store a value in the data transfer region.
  *
- *  Operation carried out by the producers.
+ *  Operation carried out by the worker threads.
  *
- *  \param prodId producer identification
- *  \param val value to be stored
+ *  \param workerId worker identification
+ *  \param *x pointer to the array with first signals of the pair
+ *  \param *x pointer to the array with second signals of the pair
+ *  \param *ci pointer to the shared data structure
  */
-
 bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *ci)
 {
   if ((statusWorkers[workerId] = pthread_mutex_lock (&accessF)) != 0)                                   /* enter monitor */
@@ -122,11 +108,6 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
     filePointer = fopen(filesToProcess[filePosition], "rb");
     size_t samples;
     size_t i = fread(&samples, sizeof(int), 1, filePointer);
-    
-    /*if(samples > ci->numbSamples){
-      x = (double*)realloc(x,sizeof(double)*samples);
-      y = (double*)realloc(y,sizeof(double)*samples);
-    }*/
 
     ci->numbSamples = samples;
     ci->filePosition = filePosition;
@@ -168,15 +149,15 @@ bool getAPieceOfData(unsigned int workerId, double *x, double *y, CONTROLINFO *c
 }
 
 /**
- *  \brief Get a value from the data transfer region.
+ *  \brief Get a value from the data transfer region and save it in result data storage.
  *
- *  Operation carried out by the consumers.
+ *  Operation carried out by the worker threads.
  *
- *  \param consId consumer identification
+ *  \param workerId worker identification
+ *	\param *ci pointer to the shared data structure
  *
  *  \return value
  */
-
 void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
 {                                                                          
 
@@ -188,7 +169,6 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
     pthread_exit (&statusWorkers[workerId]);
   }
 
-  //printf("POS: %i, INDEX: %i, RESULT: %f\n",ci->filePosition, ci->rxyIndex, ci->result);
   filesManager[ci->filePosition].result[ci->rxyIndex] = ci->result;
   filesManager[ci->filePosition].rxyIndex++;
   ci->rxyIndex = filesManager[ci->filePosition].rxyIndex;
@@ -208,6 +188,12 @@ void savePartialResults(unsigned int workerId, CONTROLINFO *ci)
   }
 }
 
+/**
+ *  \brief Print all the results stored in result data storage.
+ *
+ *  Operation carried out by the main thread.
+ *
+ */
 void printResults(){
   
   size_t i, x, numbErrors;

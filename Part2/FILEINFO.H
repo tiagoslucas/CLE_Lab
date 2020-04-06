@@ -1,3 +1,13 @@
+/**
+ *  \file FILEINFO.h (interface file)
+ *
+ *  \brief Problem name: Problem 2.
+ *
+ *  File with the data shared accross all threads, referencing file stream.
+ *
+ *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ */
+ 
 #ifndef FILEINFO_H
 #define FILEINFO_H
 

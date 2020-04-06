@@ -1,3 +1,13 @@
+/**
+ *  \file CONTROLINFO.h (interface file)
+ *
+ *  \brief Problem name: Problem 2.
+ *
+ *  File with the data shared accross all threads, referencing signal stream.
+ *
+ *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ */
+ 
 #ifndef CONTROLINFO_H
 #define CONTROLINFO_H
 
