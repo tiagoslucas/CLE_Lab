@@ -73,9 +73,9 @@ int main (int argc, char *argv[]){
     FILE *f;                               /* pointer to the text stream associated with the file name */
     unsigned int whatToDo;                 /* command */
     unsigned int aux,                     /* counting variables */
+                 workProc,
                  i,
-                 x;                                  
-    unsigned int nProc;                   /* process number */
+                 x;
     CONTROLINFO ci = {0};                      /* data transfer variable */
     unsigned char dataToBeProcessed[K+1];
     size_t filePos = 1;
@@ -91,15 +91,18 @@ int main (int argc, char *argv[]){
       return EXIT_FAILURE;
     }
         
-    while(filePos != numbFiles){
+    while(filePos <= numbFiles){
 
       /* distribute sorting task */
 
-      nProc = 1;
-      for (x = 0; x < totProc; x++){
-          
-        if(f == NULL){
+      for (x = 1; x < totProc; x++) {
+        printf("SENDING TO WORKER %i\n",x);
+        if(filePos > numbFiles) {
+          workProc = x;
+          break;
+        } else if(f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
+            filePos++;
             perror ("error on file opening for reading");
             whatToDo = NOMOREWORK;
       
@@ -114,21 +117,20 @@ int main (int argc, char *argv[]){
         i = fread(dataToBeProcessed, 1, K, f);
 
         if(i < K) {
-          
           filePos++;
           
           if (fclose (f) == EOF){ 
             perror ("error on closing file");
             whatToDo = NOMOREWORK;
             for (x = 1; x < totProc; x++)
-            MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
+              MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
             MPI_Finalize ();
             exit (EXIT_FAILURE);
           }
 
           f = NULL;
 
-        }else{
+        } else {
           aux = i;
           while(isValidStopCharacter(dataToBeProcessed[i-1]) == 0 && i > 0){
             i--;
@@ -138,22 +140,22 @@ int main (int argc, char *argv[]){
           fseek(f, i-K,SEEK_CUR);
         }
 
+        printf("START SEND TO WORKER %i\n", x);
         ci.numbBytes = i;
-  
-
         whatToDo = WORKTODO;
-        MPI_Send (&whatToDo, 1, MPI_UNSIGNED, nProc, 0, MPI_COMM_WORLD);
-        MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, nProc, 0, MPI_COMM_WORLD);
-        MPI_Send (dataToBeProcessed, (K+1) * sizeof (char), MPI_CHAR, nProc, 0, MPI_COMM_WORLD);
+
+        MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
+        MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD);
+        MPI_Send (dataToBeProcessed, (K+1), MPI_CHAR, x, 0, MPI_COMM_WORLD);
         memset(dataToBeProcessed, 0, K+1);
-        nProc += 1;
       }
 
-      nProc = 1;
-      for (x = 0; x < totProc; x++){
-        MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, nProc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Barrier(MPI_COMM_WORLD);
+      printf("START RECEIVING RESULTS FROM %i WORKERS.\n", workProc);
+      for (x = 1; x <= workProc; x++){
+        printf("WAITING RESULTS FROM WORKER %d\n", x);
+        MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
-        nProc += 1;
       }
       
     }
@@ -164,26 +166,29 @@ int main (int argc, char *argv[]){
     for (x = 1; x < totProc; x++)
       MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     printResults(numbFiles, argv+1);
 
   } else { 
     /* worker processes
     the remainder processes of the group */
-
     unsigned int whatToDo;                                                   /* command */
     CONTROLINFO ci;                                                          /* data transfer variable */
     unsigned char dataToBeProcessed[K+1];                                    /* text to process */
 
-
-    while (true){ 
+    while (true){
+      printf("STARTED WORKER %d.\n",rank);
       MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      if (whatToDo == NOMOREWORK) break;
+      printf("whatToDo: %i\n", whatToDo);
+      printf("totProc: %i\n", totProc);
+      if (whatToDo == NOMOREWORK)
+        break;
       MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Recv (&dataToBeProcessed, K * sizeof(char), MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv (&dataToBeProcessed, K+1, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       processText(dataToBeProcessed, &ci);
+      printf("END PROCESS\n");
       MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
-
-      //dúvidas: no process e mpi_send é  com & ou sem
+      printf("RESULTS SENT\n");
     }
   }
 
@@ -383,7 +388,7 @@ static void processText(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
         }
     }
     
-    printf("%d\n", maxWordLength);
+    printf("PROCESS RESULTS: %d\n",maxWordLength);
     if (maxWordLength > ci->maxWordLength)
       ci->maxWordLength = maxWordLength;
 }
