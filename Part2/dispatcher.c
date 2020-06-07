@@ -9,6 +9,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <errno.h>
+#include <mpi.h>
 
 #include "probConst.h"
 #include "FILEINFO.h"
@@ -19,10 +20,15 @@
 # define  NOMOREWORK     0
 
 /* Allusion to internal functions */
-static void presentDataFileNames(char *listOfFiles[], unsigned int size)
-static void savePartialResults(CONTROLINFO*);
-static void printResults(unsigned int, char**);
-static void circularCrossCorrelation(double*, double*, CONTROLINFO*);
+void presentDataFileNames(char *listOfFiles[], unsigned int size);
+void savePartialResults(CONTROLINFO*);
+void printResults();
+void circularCrossCorrelation(double*, double*, CONTROLINFO*);
+
+/* Globlal variables */
+FILEINFO* filesManager;
+unsigned int numbFiles;
+char filesToProcess[10][50];
 
 /**
  *  \brief Main thread.
@@ -32,9 +38,9 @@ static void circularCrossCorrelation(double*, double*, CONTROLINFO*);
 int main(int argc, char const *argv[]) {
 
   int nProc, rank;
-  unsigned int numbFiles = argc - 1;
+  numbFiles = argc - 1;
   filesManager = (FILEINFO*)malloc(sizeof(FILEINFO)*numbFiles);
-  CONTROLINFO ci = {0};
+  CONTROLINFO ci = (CONTROLINFO) {0};
 
   /* get processing configuration */
   MPI_Init(&argc, &argv);
@@ -50,13 +56,15 @@ int main(int argc, char const *argv[]) {
     FILE *f;
     FILEINFO *filesManager;
     unsigned int whatToDo, workProc;
-    size_t filePos = 1, samples;
+    size_t filePos = 1, samples, aux;
+    double x[DEFAULT_SIZE_SIGNAL];
+    double y[DEFAULT_SIZE_SIGNAL];
 
     if(argc < 2) {
 
-      printf("Please insert text files to be processed as arguments!");
+      printf("Please insert binary files to be processed as arguments!");
       whatToDo = NOMOREWORK;
-      for (x = 1; x < totProc; x++)
+      for (int x = 1; x < nProc; x++)
         MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
       MPI_Finalize ();
       exit(EXIT_FAILURE);
@@ -64,7 +72,7 @@ int main(int argc, char const *argv[]) {
     }
 
     /* processing the circular cross correlation between two signals */
-    while (filePos <= filesToProcess) {
+    while (filePos <= numbFiles) {
       for (int x = 1; x < nProc; x++){
         if (filePos > numbFiles) {
           workProc = x;
@@ -75,34 +83,34 @@ int main(int argc, char const *argv[]) {
             perror ("error on file opening for reading");
             whatToDo = NOMOREWORK;
       
-            for (x = 1; x < totProc; x++)
-              MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
+            for (int i = 1; i < nProc; i++)
+              MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
             MPI_Finalize ();
             exit (EXIT_FAILURE);
           }
         }
 
-        i = fread(&samples, sizeof(int), 1, f);
+        aux = fread(&samples, sizeof(int), 1, f);
 
-        ci->numbSamples = samples;
-        ci->filePosition = filePos;
-        ci->processing = true;
-        ci->rxyIndex = 0;
+        ci.numbSamples = samples;
+        ci.filePosition = filePos;
+        ci.processing = true;
+        ci.rxyIndex = 0;
 
         fread(x, sizeof(double), samples, f);
         fread(y, sizeof(double), samples, f);
 
-        if(filesManager[filePosition].read == false){
+        if(filesManager[filePos].read == false){
 
           double real[samples];
           fread(real, sizeof(double), samples, f);
-          filesManager[filePosition].read = true;
-          filesManager[filePosition].rxyIndex = 0;
-          filesManager[filePosition].filePosition = filePosition;
-          filesManager[filePosition].numbSamples = samples;
+          filesManager[filePos].read = true;
+          filesManager[filePos].rxyIndex = 0;
+          filesManager[filePos].filePosition = filePos;
+          filesManager[filePos].numbSamples = samples;
 
           for (size_t t = 0; t < samples; t++){
-            filesManager[filePosition].expected[t]= real[t];
+            filesManager[filePos].expected[t]= real[t];
           }
 
         }
@@ -110,7 +118,7 @@ int main(int argc, char const *argv[]) {
         if (fclose (f) == EOF){ 
           perror ("error on closing file");
           whatToDo = NOMOREWORK;
-          for (x = 1; x < totProc; x++)
+          for (x = 1; x < nProc; x++)
             MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
           MPI_Finalize ();
           exit (EXIT_FAILURE);
@@ -128,7 +136,7 @@ int main(int argc, char const *argv[]) {
 
     /* dismiss worker processes */
     whatToDo = NOMOREWORK;
-    for (x = 1; x < totProc; x++)
+    for (int x = 1; x < nProc; x++)
       MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -138,12 +146,12 @@ int main(int argc, char const *argv[]) {
     printf ("\nElapsed time = %.6f s\n", t1 - t0);
 
   } else { /* worker processes */
-
+    unsigned int whatToDo;
     double x[DEFAULT_SIZE_SIGNAL];
     double y[DEFAULT_SIZE_SIGNAL];
 
     while (true) {
-      ci = {0};
+      ci = (CONTROLINFO) {0};
       ci.filePosition = -1;
       ci.processing = false;
 
@@ -168,12 +176,12 @@ int main(int argc, char const *argv[]) {
  *  Operation carried out by the main thread.
  *
  *  \param listOfFiles names of files to process
- *  \param size number of text files to be processed
+ *  \param size number of binary files to be processed
  */
 void presentDataFileNames(char *listOfFiles[], unsigned int size){
   numbFiles = size;
   for(int i = 0; i < size; i++)
-    filesToProcess[i] = listOfFiles[i];
+    strcpy(filesToProcess[i], listOfFiles[i]);
 }
 
 /**
@@ -228,13 +236,11 @@ void printResults(){
  *
  */
 void savePartialResults(CONTROLINFO *ci) {
-
   filesManager[ci->filePosition].result[ci->rxyIndex] = ci->result;
   filesManager[ci->filePosition].rxyIndex++;
   ci->rxyIndex = filesManager[ci->filePosition].rxyIndex;
   ci->result = 0;
   if(filesManager[ci->filePosition].rxyIndex == filesManager[ci->filePosition].numbSamples){
-    filePosition++;
     ci->filePosition++;
     ci->processing = false;
   }
