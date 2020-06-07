@@ -22,5 +22,8 @@
 /** \brief standard number of signals per each file */
 #define  DEFAULT_SIZE_SIGNAL      70000
 
+/* \brief Working state definitions */
+# define  WORKTODO       1
+# define  NOMOREWORK     0
 
 #endif /* PROBCONST_H_ */

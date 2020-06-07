@@ -15,15 +15,11 @@
 #include "FILEINFO.h"
 #include "CONTROLINFO.h"
 
-/* General definitions */
-# define  WORKTODO       1
-# define  NOMOREWORK     0
-
 /* Allusion to internal functions */
-void presentDataFileNames(char *listOfFiles[], unsigned int size);
-void savePartialResults(CONTROLINFO*);
-void printResults();
-void circularCrossCorrelation(double*, double*, CONTROLINFO*);
+static void presentDataFileNames(char**, unsigned int);
+static void circularCrossCorrelation(double*, double*, CONTROLINFO*);
+static void savePartialResults(CONTROLINFO*);
+static void printResults();
 
 /* Globlal variables */
 FILEINFO* filesManager;
@@ -35,7 +31,8 @@ char filesToProcess[10][50];
  *
  *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
  */
-int main(int argc, char const *argv[]) {
+int main (int argc, char *argv[]){
+  printf("WE DIDN'T START THE FIRE");
 
   int nProc, rank;
   numbFiles = argc - 1;
@@ -43,15 +40,17 @@ int main(int argc, char const *argv[]) {
   CONTROLINFO ci = (CONTROLINFO) {0};
 
   /* get processing configuration */
-  MPI_Init(&argc, &argv);
+  MPI_Init (&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nProc);
+  printf("PROCESS %i OUT OF %i INITIATED", rank, nProc);
 
   if (rank == 0) {
 
     double t0, t1;
-    t0 = ((double) clock ()) / CLOCKS_PER_SEC;
-    presentDataFileNames(argv + 1, --argc);
+    MPI_Barrier(MPI_COMM_WORLD);
+    t0 = MPI_Wtime();
+    presentDataFileNames(argv, argc - 1);
 
     FILE *f;
     FILEINFO *filesManager;
@@ -91,14 +90,21 @@ int main(int argc, char const *argv[]) {
         }
 
         aux = fread(&samples, sizeof(int), 1, f);
+        printf("READING %lu SAMPLES!\n", samples);
 
         ci.numbSamples = samples;
         ci.filePosition = filePos;
         ci.processing = true;
         ci.rxyIndex = 0;
 
-        fread(x, sizeof(double), samples, f);
-        fread(y, sizeof(double), samples, f);
+        fread(&x, sizeof(double), samples, f);
+        fread(&y, sizeof(double), samples, f);
+
+        for (int i = 0; i < workProc; i++) {
+          MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, i, 0, MPI_COMM_WORLD);
+          MPI_Send (&x, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+          MPI_Send (&y, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+        }
 
         if(filesManager[filePos].read == false){
 
@@ -109,10 +115,8 @@ int main(int argc, char const *argv[]) {
           filesManager[filePos].filePosition = filePos;
           filesManager[filePos].numbSamples = samples;
 
-          for (size_t t = 0; t < samples; t++){
-            filesManager[filePos].expected[t]= real[t];
-          }
-
+          for (size_t t = 0; t < samples; t++)
+            filesManager[filePos].expected[t] = real[t];
         }
         
         if (fclose (f) == EOF){ 
@@ -142,7 +146,7 @@ int main(int argc, char const *argv[]) {
 
     printf ("\nFinal report\n");
     printResults();
-    t1 = ((double) clock ()) / CLOCKS_PER_SEC;
+    t1 = MPI_Wtime();
     printf ("\nElapsed time = %.6f s\n", t1 - t0);
 
   } else { /* worker processes */
@@ -178,7 +182,7 @@ int main(int argc, char const *argv[]) {
  *  \param listOfFiles names of files to process
  *  \param size number of binary files to be processed
  */
-void presentDataFileNames(char *listOfFiles[], unsigned int size){
+void presentDataFileNames(char** listOfFiles, unsigned int size){
   numbFiles = size;
   for(int i = 0; i < size; i++)
     strcpy(filesToProcess[i], listOfFiles[i]);
@@ -192,12 +196,12 @@ void presentDataFileNames(char *listOfFiles[], unsigned int size){
  */
 void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
 
-   size_t i, j;
+   size_t i;
    size_t n = ci->numbSamples;
    size_t temp = ci->rxyIndex; 
 
-   for(j = 0; j < n; j++){
-      ci->result += x[j] * y[(temp+j)%n];
+   for(i = 0; i < n; i++){
+      ci->result += x[i] * y[(temp+i)%n];
    }
 }
 
@@ -221,7 +225,7 @@ void printResults(){
     if(numbErrors==0)
       printf("File %s was calculated correctly.\n", filesToProcess[i]);
     else 
-      printf("File %s had %i errors in total.\n", filesToProcess[i], numbErrors);
+      printf("File %s had %lu errors in total.\n", filesToProcess[i], numbErrors);
   }
   
   free(filesManager);
