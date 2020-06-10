@@ -29,7 +29,7 @@
 # define  NOMOREWORK     0
 
 /** \brief results of processed text */
-CONTROLINFO* results;
+CONTROLINFO *results;
 
 /** \brief byte pointer inside file */
 int *maxWordLEN;
@@ -52,17 +52,19 @@ static void processText(unsigned char*, CONTROLINFO*);
  */
 
 int main (int argc, char *argv[]){
-  int rank,                                                                     /* number of processes in the group */
-  totProc;                                                                                        /* group size */
-  unsigned int numbFiles = argc - 1;
+  int rank,                                                              /* number of processes in the group */
+  totProc;                                                               /* group size */
+  double start, finish;
+  unsigned int numbFiles = argc - 1;                                     /* number of files to process*/
   
-  results = (CONTROLINFO*)calloc(numbFiles, sizeof(CONTROLINFO));
-  maxWordLEN = calloc(numbFiles, sizeof(int));
   /* get processing configuration */
 
   MPI_Init (&argc, &argv);
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
   MPI_Comm_size (MPI_COMM_WORLD, &totProc);
+
+  MPI_Barrier (MPI_COMM_WORLD);
+  start = MPI_Wtime();
 
   /* processing */
 
@@ -79,33 +81,32 @@ int main (int argc, char *argv[]){
     CONTROLINFO ci = {0};                      /* data transfer variable */
     unsigned char dataToBeProcessed[K+1];
     size_t filePos = 1;
+    results = (CONTROLINFO*) malloc(numbFiles * sizeof(CONTROLINFO));
+    maxWordLEN = (int *) malloc(numbFiles * sizeof(int));
 
     /* check running parameters and load list of names into memory */
 
     if (argc < 2){ 
-      printf("Please insert text files to be processed as arguments!");
+      perror("Please insert text files to be processed as arguments!");
       whatToDo = NOMOREWORK;
       for (x = 1; x < totProc; x++)
         MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
       MPI_Finalize ();
       return EXIT_FAILURE;
     }
-        
     while(filePos <= numbFiles){
-
-      /* distribute sorting task */
-
-      for (x = 1; x < totProc; x++) {
-        printf("SENDING TO WORKER %i\n",x);
-        if(filePos > numbFiles) {
-          workProc = x;
+      workProc = 1;
+      for (x = 1; x < totProc; x++, workProc++){
+        
+        if(filePos > numbFiles){
           break;
-        } else if(f == NULL) {
+        }
+          
+        if(f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
             filePos++;
             perror ("error on file opening for reading");
             whatToDo = NOMOREWORK;
-      
             for (x = 1; x < totProc; x++)
               MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
             MPI_Finalize ();
@@ -118,7 +119,7 @@ int main (int argc, char *argv[]){
 
         if(i < K) {
           filePos++;
-          
+      
           if (fclose (f) == EOF){ 
             perror ("error on closing file");
             whatToDo = NOMOREWORK;
@@ -139,20 +140,18 @@ int main (int argc, char *argv[]){
             i = aux;
           fseek(f, i-K,SEEK_CUR);
         }
-
-        printf("START SEND TO WORKER %i\n", x);
         ci.numbBytes = i;
+     
+      /* distribute sorting task */
+        printf("START SEND TO WORKER %i\n", x);
         whatToDo = WORKTODO;
-
         MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
         MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD);
-        MPI_Send (dataToBeProcessed, (K+1), MPI_CHAR, x, 0, MPI_COMM_WORLD);
+        MPI_Send (dataToBeProcessed, K+1, MPI_CHAR, x, 0, MPI_COMM_WORLD);
         memset(dataToBeProcessed, 0, K+1);
       }
 
-      MPI_Barrier(MPI_COMM_WORLD);
-      printf("START RECEIVING RESULTS FROM %i WORKERS.\n", workProc);
-      for (x = 1; x <= workProc; x++){
+      for (x = 1; x < workProc; x++) {
         printf("WAITING RESULTS FROM WORKER %d\n", x);
         MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
@@ -165,9 +164,7 @@ int main (int argc, char *argv[]){
     whatToDo = NOMOREWORK;
     for (x = 1; x < totProc; x++)
       MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    printResults(numbFiles, argv+1);
+    
 
   } else { 
     /* worker processes
@@ -180,21 +177,30 @@ int main (int argc, char *argv[]){
       printf("STARTED WORKER %d.\n",rank);
       MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       printf("whatToDo: %i\n", whatToDo);
-      printf("totProc: %i\n", totProc);
       if (whatToDo == NOMOREWORK)
         break;
+      printf("totProc: %i\n", totProc);
       MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       MPI_Recv (&dataToBeProcessed, K+1, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       processText(dataToBeProcessed, &ci);
-      printf("END PROCESS\n");
+      printf("SENDING INFO\n");
       MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
       printf("RESULTS SENT\n");
     }
   }
 
-   MPI_Finalize ();
-   return EXIT_SUCCESS;
+  MPI_Barrier (MPI_COMM_WORLD);
+  finish = MPI_Wtime();
+  if(rank == 0) {
+    printf("Execution time: %f seconds\n", finish - start);
+    //printResults(numbFiles, argv+1);
+    free(results);
+    free(maxWordLEN);
+  }
+  MPI_Finalize ();
+  return EXIT_SUCCESS;
 }
+
 
 
 /**
@@ -202,7 +208,7 @@ int main (int argc, char *argv[]){
  *
  *  Operation carried out by the main thread.
  *
- *  \param *ci		pointer to the shared data structure
+ *  \param *ci    pointer to the shared data structure
  *
  *  \return value
  */
@@ -224,17 +230,14 @@ void savePartialResults(CONTROLINFO *ci){
 
 }
 
-
-
-
 /**
  *  \brief Validate if a character is a stop character.
  *
  *  Operation carried out by dispatcher process.
  *
- * \param character		character to which the validation is done.
+ * \param character   character to which the validation is done.
  *
- * \return 				0 if the character provided is not a stop character, otherwise is the number of bytes the character should have. Can be used as true/false.
+ * \return        0 if the character provided is not a stop character, otherwise is the number of bytes the character should have. Can be used as true/false.
  *
  */
 static int isValidStopCharacter(char character) {
@@ -269,7 +272,7 @@ static void printResults(unsigned int numbFiles, char *filesToProcess[]){
     printf("Total number of words: %lu \n", results[i].numbWords);
     printf("Word length\n");
 
-    int Words[maxWordLEN[i]];
+    int Words[max_len];
     printf(" ");
     for (y = 0; y < max_len; y++){
       Words[y] = 0;
@@ -305,7 +308,6 @@ static void printResults(unsigned int numbFiles, char *filesToProcess[]){
     printf("\n\n");
     }
   }
-  free(results);
 }
 
 
@@ -324,71 +326,70 @@ static void processText(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
     int skip, nVowels = 0, nCharacters = 0, maxWordLength = 0, length = ci->numbBytes;
     
     for (int i = 0; i < length; i++) {
-    	skip = 0;
+      skip = 0;
         if((char)dataToBeProcessed[i] == (char)0xC3) {
-        	skip = 1;
+          skip = 1;
             i += 1;
         } else if((char)dataToBeProcessed[i] == (char)0xE2) {
-        	skip = 2;
+          skip = 2;
             i += 2;
-		}
+    }
         cha = dataToBeProcessed[i];
 
-		if (cha >= 48 && cha <= 57) {
-			inWord = true;
+    if (cha >= 48 && cha <= 57) {
+      inWord = true;
             nCharacters++;
         } else if (skip == 0 && cha >= 65 && cha <= 90) {
             inWord = true;
             nCharacters++;
-        	if (cha == 65 || cha == 69 || cha == 73 || cha == 79 || cha == 85)
-        		nVowels++;
+          if (cha == 65 || cha == 69 || cha == 73 || cha == 79 || cha == 85)
+            nVowels++;
         } else if (skip == 0 && cha >= 97 && cha <= 122) {
             inWord = true;
             nCharacters++;
-        	if (cha == 97 || cha == 101 || cha == 105 || cha == 111 || cha == 117)
-        		nVowels++;
+          if (cha == 97 || cha == 101 || cha == 105 || cha == 111 || cha == 117)
+            nVowels++;
         } else if (skip == 0 && cha == '_') {
             inWord = true;
             nCharacters++;
-		} else if ((skip == 0 && cha == (char)0x27) || (skip == 2 && cha == (char)0x98) || (skip == 2 && cha == 0x99)) {
+    } else if ((skip == 0 && cha == (char)0x27) || (skip == 2 && cha == (char)0x98) || (skip == 2 && cha == 0x99)) {
             ;
-		} else if (skip == 1) {
-			if (cha == (char)0xA7 || cha == (char)0x87) {
-            	inWord = true;
-	            nCharacters++;
-	        } else if (cha == (char)0xA1 || cha == (char)0xA0 || cha == (char)0xA2 || cha == (char)0xA3 || cha == (char)0x81 || cha == (char)0x80 || cha == (char)0x82 || cha == (char)0x83) {
-	            inWord = true;
-	            nCharacters++;
-	            nVowels++;
-	        } else if (cha == (char)0xA9 || cha == (char)0xA8 || cha == (char)0xAA || cha == (char)0x89 || cha == (char)0x88 || cha == (char)0x8A) {
-	            inWord = true;
-	            nCharacters++;
-	            nVowels++;
-	        } else if (cha == (char)0xAD || cha == (char)0xAC || cha == (char)0x8D || cha == (char)0x8C) {
-	            inWord = true;
-	            nCharacters++;
-	            nVowels++;
-	        } else if (cha == (char)0xB3 || cha == (char)0xB2 || cha == (char)0xB4 || cha == (char)0xB5 || cha == (char)0x93 || cha == (char)0x92 || cha == (char)0x94 || cha == (char)0x95) {
-	    		inWord = true;
-	            nCharacters++;
-	            nVowels++;
-	        } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x9A || cha == (char)0x99) {
-	            inWord = true;
-	            nCharacters++;
-	            nVowels++;
-	    	}
+    } else if (skip == 1) {
+      if (cha == (char)0xA7 || cha == (char)0x87) {
+              inWord = true;
+              nCharacters++;
+          } else if (cha == (char)0xA1 || cha == (char)0xA0 || cha == (char)0xA2 || cha == (char)0xA3 || cha == (char)0x81 || cha == (char)0x80 || cha == (char)0x82 || cha == (char)0x83) {
+              inWord = true;
+              nCharacters++;
+              nVowels++;
+          } else if (cha == (char)0xA9 || cha == (char)0xA8 || cha == (char)0xAA || cha == (char)0x89 || cha == (char)0x88 || cha == (char)0x8A) {
+              inWord = true;
+              nCharacters++;
+              nVowels++;
+          } else if (cha == (char)0xAD || cha == (char)0xAC || cha == (char)0x8D || cha == (char)0x8C) {
+              inWord = true;
+              nCharacters++;
+              nVowels++;
+          } else if (cha == (char)0xB3 || cha == (char)0xB2 || cha == (char)0xB4 || cha == (char)0xB5 || cha == (char)0x93 || cha == (char)0x92 || cha == (char)0x94 || cha == (char)0x95) {
+          inWord = true;
+              nCharacters++;
+              nVowels++;
+          } else if (cha == (char)0xBA || cha == (char)0xB9 || cha == (char)0x9A || cha == (char)0x99) {
+              inWord = true;
+              nCharacters++;
+              nVowels++;
+        }
         } else if ((inWord && (skip == 0 && isValidStopCharacter(cha) == 1)) || (inWord && skip == 2 && isValidStopCharacter(cha) == 3) ) {
             ci->bidi[nVowels][nCharacters - 1]++;
             ci->numbWords++;
             if (nCharacters > maxWordLength)
-            	maxWordLength = nCharacters;
+              maxWordLength = nCharacters;
             nCharacters = 0;
             nVowels = 0;
             inWord = false;
         }
     }
     
-    printf("PROCESS RESULTS: %d\n",maxWordLength);
     if (maxWordLength > ci->maxWordLength)
       ci->maxWordLength = maxWordLength;
 }
