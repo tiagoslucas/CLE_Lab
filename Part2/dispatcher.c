@@ -1,9 +1,17 @@
+/**
+ *  \file dispatcher.c (implementation file)
+ *
+ *  \brief 
+ *
+ *  
+ *
+ *  \author 
+ */
+
 #include <stdio.h>
 #include <wchar.h>
 #include <string.h>
 #include <stdlib.h>
-#include <locale.h>
-#include <stdbool.h>
 #include <sys/types.h>
 #include <time.h>
 #include <math.h>
@@ -16,15 +24,13 @@
 #include "CONTROLINFO.h"
 
 /* Allusion to internal functions */
-static void presentDataFileNames(char**, unsigned int);
-static void circularCrossCorrelation(double*, double*, CONTROLINFO*);
-static void savePartialResults(CONTROLINFO*);
-static void printResults();
+void circularCrossCorrelation(double*, double*, CONTROLINFO*);
+void savePartialResults(CONTROLINFO*);
+void printResults();
 
 /* Globlal variables */
 FILEINFO* filesManager;
 unsigned int numbFiles;
-char filesToProcess[10][50];
 
 /**
  *  \brief Main thread.
@@ -32,49 +38,46 @@ char filesToProcess[10][50];
  *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
  */
 int main (int argc, char *argv[]){
-  printf("WE DIDN'T START THE FIRE");
 
   int nProc, rank;
+  double t0, t1;
   numbFiles = argc - 1;
-  filesManager = (FILEINFO*)malloc(sizeof(FILEINFO)*numbFiles);
-  CONTROLINFO ci = (CONTROLINFO) {0};
+  CONTROLINFO ci;
+  double* x;
+  double* y;
 
   /* get processing configuration */
   MPI_Init (&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nProc);
-  printf("PROCESS %i OUT OF %i INITIATED", rank, nProc);
+  printf("PROCESS %d OUT OF %d INITIATED\n", rank, nProc - 1);
 
   if (rank == 0) {
 
-    double t0, t1;
-    MPI_Barrier(MPI_COMM_WORLD);
     t0 = MPI_Wtime();
-    presentDataFileNames(argv, argc - 1);
-
     FILE *f;
-    FILEINFO *filesManager;
-    unsigned int whatToDo, workProc;
-    size_t filePos = 1, samples, aux;
-    double x[DEFAULT_SIZE_SIGNAL];
-    double y[DEFAULT_SIZE_SIGNAL];
+    filesManager = (FILEINFO*)malloc(sizeof(FILEINFO)*numbFiles);;
+    ci = (CONTROLINFO) {0};
+    unsigned int whatToDo = WORKTODO, workProc, filePos = 1;
+    size_t samples;
+    double* real;
 
     if(argc < 2) {
 
-      printf("Please insert binary files to be processed as arguments!");
+      perror("Please insert binary files to be processed as arguments!");
       whatToDo = NOMOREWORK;
-      for (int x = 1; x < nProc; x++)
-        MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
+      for (int i = 1; i < nProc; i++)
+        MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
       MPI_Finalize ();
       exit(EXIT_FAILURE);
         
     }
-
+    printf("ENTERING WHILE\n");
     /* processing the circular cross correlation between two signals */
     while (filePos <= numbFiles) {
-      for (int x = 1; x < nProc; x++){
+      workProc = 1;
+      for (int i = 1; i < nProc; i++, workProc++){
         if (filePos > numbFiles) {
-          workProc = x;
           break;
         } else if (f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
@@ -88,42 +91,36 @@ int main (int argc, char *argv[]){
             exit (EXIT_FAILURE);
           }
         }
-
-        aux = fread(&samples, sizeof(int), 1, f);
-        printf("READING %lu SAMPLES!\n", samples);
+        printf("FIRST READ\n");
+        fread(&samples, sizeof(int), 1, f);
+        printf("ALLOCATION %d SAMPLES FOR x AND y\n", samples);
+        x = (double *) malloc(sizeof(double) * samples);
+        y = (double *) malloc(sizeof(double) * samples);
+        real = (double *) malloc(sizeof(double) * samples);
 
         ci.numbSamples = samples;
-        ci.filePosition = filePos;
+        ci.filePosition = filePos - 1;
         ci.processing = true;
         ci.rxyIndex = 0;
 
-        fread(&x, sizeof(double), samples, f);
-        fread(&y, sizeof(double), samples, f);
+        fread(x, sizeof(double), samples, f);
+        fread(y, sizeof(double), samples, f);
+        fread(real, sizeof(double), samples, f);
+        printf("READ %lu SAMPLES TO x AND TO y!\n", samples);
 
-        for (int i = 0; i < workProc; i++) {
-          MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, i, 0, MPI_COMM_WORLD);
-          MPI_Send (&x, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-          MPI_Send (&y, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-        }
-
-        if(filesManager[filePos].read == false){
-
-          double real[samples];
-          fread(real, sizeof(double), samples, f);
-          filesManager[filePos].read = true;
-          filesManager[filePos].rxyIndex = 0;
-          filesManager[filePos].filePosition = filePos;
-          filesManager[filePos].numbSamples = samples;
-
-          for (size_t t = 0; t < samples; t++)
-            filesManager[filePos].expected[t] = real[t];
-        }
+        printf("SENDING DATA TO WORKER %i\n", i);
+        MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+        MPI_Send (&samples, sizeof(unsigned int), MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+        MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, i, 0, MPI_COMM_WORLD);
+        MPI_Send (&x, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+        MPI_Send (&y, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+        printf("SENT DATA TO WORKER %i\n", i);
         
         if (fclose (f) == EOF){ 
           perror ("error on closing file");
           whatToDo = NOMOREWORK;
-          for (x = 1; x < nProc; x++)
-            MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
+          for (int i = 1; i < nProc; i++)
+            MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
           MPI_Finalize ();
           exit (EXIT_FAILURE);
         }
@@ -131,61 +128,61 @@ int main (int argc, char *argv[]){
 
       }
 
-      MPI_Barrier(MPI_COMM_WORLD);
-      for (int i = 0; i < nProc; i++) {
+      for (int i = 0; i < workProc; i++) {
         MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
+
+        if(filesManager[filePos].read == false){
+
+          double real[samples];
+          fread(real, sizeof(double), samples, f);
+          filesManager[filePos].read = true;
+          filesManager[filePos].rxyIndex = 0;
+          filesManager[filePos].filePosition = filePos - 1;
+          filesManager[filePos].numbSamples = samples;
+
+          for (size_t t = 0; t < samples; t++)
+            filesManager[filePos].expected[t] = real[t];
+          }
       }
+      
     }
 
     /* dismiss worker processes */
     whatToDo = NOMOREWORK;
-    for (int x = 1; x < nProc; x++)
-      MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    printf ("\nFinal report\n");
-    printResults();
-    t1 = MPI_Wtime();
-    printf ("\nElapsed time = %.6f s\n", t1 - t0);
+    for (int i = 1; i < nProc; i++)
+      MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
 
   } else { /* worker processes */
-    unsigned int whatToDo;
-    double x[DEFAULT_SIZE_SIGNAL];
-    double y[DEFAULT_SIZE_SIGNAL];
+    unsigned int whatToDo, size_signal;
 
     while (true) {
       ci = (CONTROLINFO) {0};
-      ci.filePosition = -1;
-      ci.processing = false;
-
       MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      printf("PROCESS %d RECEIVED whatToDo: %d\n", rank, whatToDo);
       if (whatToDo == NOMOREWORK)
         break;
+      MPI_Recv (&size_signal, sizeof (unsigned int), MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      x = (double *) malloc(sizeof(double) * size_signal);
+      y = (double *) malloc(sizeof(double) * size_signal);
       MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Recv (&x, DEFAULT_SIZE_SIGNAL, MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Recv (&y, DEFAULT_SIZE_SIGNAL, MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv (&x, size_signal, MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv (&y, size_signal, MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       circularCrossCorrelation(x, y, &ci);
       MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
+      printf("PROCESS %d SENT RESULTS\n", rank);
     }
   }
 
+  MPI_Barrier (MPI_COMM_WORLD);
+  if (rank == 0) {
+    printf("\nFinal report\n");
+    printResults(argv+1);
+    t1 = MPI_Wtime();
+    printf("\nElapsed time = %.6f s\n", t1 - t0);
+  }
   MPI_Finalize ();
   return EXIT_SUCCESS;
-}
-
-/**
- *  \brief Insert the names of the files to be processed in an array.
- *
- *  Operation carried out by the main thread.
- *
- *  \param listOfFiles names of files to process
- *  \param size number of binary files to be processed
- */
-void presentDataFileNames(char** listOfFiles, unsigned int size){
-  numbFiles = size;
-  for(int i = 0; i < size; i++)
-    strcpy(filesToProcess[i], listOfFiles[i]);
 }
 
 /**
@@ -211,7 +208,7 @@ void circularCrossCorrelation(double *x, double *y, CONTROLINFO *ci) {
  *  Operation carried out by the dispatcher.
  *
  */
-void printResults(){
+void printResults(char** filesToProcess){
   
   size_t i, x, numbErrors;
 
