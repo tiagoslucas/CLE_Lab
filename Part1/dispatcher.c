@@ -1,14 +1,9 @@
 /**
- *  \file binSortListNames.c (implementation file)
+ *  \file dispatcher.c (implementation file)
  *
- *  \brief Sorting of a list of names stored in a file.
+ *  \brief Problem name: Problem 1.
  *
- *  It sorts the list using a binary sorting algorithm which allows the sorting of parts of the original list by
- *  different processes of a group in a hierarchical way.
- *  The list of names must be supplied by the user.
- *  MPI implementation.
- *
- *  \author António Rui Borges - April 2020
+ *  \author Francisco Gonçalves and Tiago Lucas - June 2020
  */
 
 #include <mpi.h>
@@ -104,7 +99,6 @@ int main (int argc, char *argv[]){
           
         if(f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
-            filePos++;
             perror ("error on file opening for reading");
             whatToDo = NOMOREWORK;
             for (x = 1; x < totProc; x++)
@@ -114,7 +108,7 @@ int main (int argc, char *argv[]){
           }
         }
 
-        ci.filePosition = filePos;
+        ci.filePosition = filePos - 1;
         i = fread(dataToBeProcessed, 1, K, f);
 
         if(i < K) {
@@ -143,7 +137,6 @@ int main (int argc, char *argv[]){
         ci.numbBytes = i;
      
       /* distribute sorting task */
-        printf("START SEND TO WORKER %i\n", x);
         whatToDo = WORKTODO;
         MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
         MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD);
@@ -152,7 +145,6 @@ int main (int argc, char *argv[]){
       }
 
       for (x = 1; x < workProc; x++) {
-        printf("WAITING RESULTS FROM WORKER %d\n", x);
         MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
       }
@@ -174,28 +166,21 @@ int main (int argc, char *argv[]){
     unsigned char dataToBeProcessed[K+1];                                    /* text to process */
 
     while (true){
-      printf("STARTED WORKER %d.\n",rank);
       MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      printf("whatToDo: %i\n", whatToDo);
       if (whatToDo == NOMOREWORK)
         break;
-      printf("totProc: %i\n", totProc);
       MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       MPI_Recv (&dataToBeProcessed, K+1, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       processText(dataToBeProcessed, &ci);
-      printf("SENDING INFO\n");
       MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
-      printf("RESULTS SENT\n");
     }
   }
 
   MPI_Barrier (MPI_COMM_WORLD);
-  finish = MPI_Wtime();
   if(rank == 0) {
+    printResults(numbFiles, argv+1);
+    finish = MPI_Wtime();
     printf("Execution time: %f seconds\n", finish - start);
-    //printResults(numbFiles, argv+1);
-    free(results);
-    free(maxWordLEN);
   }
   MPI_Finalize ();
   return EXIT_SUCCESS;
@@ -308,6 +293,8 @@ static void printResults(unsigned int numbFiles, char *filesToProcess[]){
     printf("\n\n");
     }
   }
+  free(results);
+  free(maxWordLEN);
 }
 
 

@@ -1,11 +1,11 @@
 /**
  *  \file probConst.h (interface file)
  *
- *  \brief Problem name: First CLE Project - Problem 1.
+ *  \brief Problem name: Second CLE Project - Problem 1.
  *
  *  Problem 1 parameters.
  *
- *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ *  \author Francisco Gonçalves Tiago Lucas - June 2020
  */
 
 #ifndef PROBCONST_H_
@@ -29,4 +29,3 @@
 #define ALIGNMENT			6
 
 #endif /* PROBCONST_H_ */
-
