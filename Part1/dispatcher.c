@@ -51,7 +51,7 @@ int main (int argc, char *argv[]){
   totProc;                                                               /* group size */
   double start, finish;
   unsigned int numbFiles = argc - 1;                                     /* number of files to process*/
-  
+
   /* get processing configuration */
 
   MPI_Init (&argc, &argv);
@@ -76,8 +76,8 @@ int main (int argc, char *argv[]){
     CONTROLINFO ci = {0};                      /* data transfer variable */
     unsigned char dataToBeProcessed[K+1];
     size_t filePos = 1;
-    results = (CONTROLINFO*) malloc(numbFiles * sizeof(CONTROLINFO));
-    maxWordLEN = (int *) malloc(numbFiles * sizeof(int));
+    results = (CONTROLINFO*) calloc(numbFiles, sizeof(CONTROLINFO));
+    maxWordLEN = (int *) calloc(numbFiles, sizeof(int));
 
     /* check running parameters and load list of names into memory */
 
@@ -136,7 +136,7 @@ int main (int argc, char *argv[]){
         }
         ci.numbBytes = i;
      
-      /* distribute sorting task */
+      	/* distribute sorting task */
         whatToDo = WORKTODO;
         MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
         MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD);
@@ -145,7 +145,7 @@ int main (int argc, char *argv[]){
       }
 
       for (x = 1; x < workProc; x++) {
-        MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
       }
       

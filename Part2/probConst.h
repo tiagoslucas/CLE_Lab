@@ -5,7 +5,7 @@
  *
  *  Problem simulation parameters.
  *
- *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ *  \author Francisco Gonçalves Tiago Lucas - June 2020
  */
 
 #ifndef PROBCONST_H_

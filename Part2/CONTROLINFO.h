@@ -5,7 +5,7 @@
  *
  *  File with the data shared accross all threads, referencing signal stream.
  *
- *  \author Francisco Gonçalves Tiago Lucas - April 2020
+ *  \author Francisco Gonçalves Tiago Lucas - June 2020
  */
  
 #ifndef CONTROLINFO_H

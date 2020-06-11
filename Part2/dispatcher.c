@@ -53,8 +53,6 @@ int main (int argc, char *argv[]){
     MPI_Barrier (MPI_COMM_WORLD);
     start = MPI_Wtime();
 
-    
-    printf("PROCESS %d OUT OF %d INITIATED\n", rank, nProc - 1);
     if (rank == 0) {
 
         FILE *f;
@@ -72,7 +70,6 @@ int main (int argc, char *argv[]){
             exit(EXIT_FAILURE);    
         }
 
-        printf("ENTERING WHILE\n");
         /* processing the circular cross correlation between two signals */
         while (filePos <= numbFiles) {
             
@@ -84,10 +81,8 @@ int main (int argc, char *argv[]){
                 MPI_Finalize ();
                 exit (EXIT_FAILURE);
             }
-                
-            printf("READ FILE\n");
+
             fread(&samples, sizeof(int), 1, f);
-            printf("ALLOCATION %u SAMPLES FOR x AND y\n", samples);
             if (filePos == 1) {
                 x = (double *) malloc(sizeof(double) * samples);
                 y = (double *) malloc(sizeof(double) * samples);
@@ -105,13 +100,10 @@ int main (int argc, char *argv[]){
             fread(real, sizeof(double), samples, f);
             filesManager[filePos - 1].result = (double *) malloc(sizeof(double) * samples);
             filesManager[filePos - 1].expected = (double *) malloc(sizeof(double) * samples);
-            //memcpy(filesManager[filePos].expected, real, sizeof(double) * samples);
-            /*for (size_t t = 0; t < samples; t++)
-                filesManager[filePos].expected[t] = real[t]; */
+            memcpy(filesManager[filePos - 1].expected, real, sizeof(double) * samples);
             filesManager[filePos - 1].rxyIndex = 0;
             filesManager[filePos - 1].filePosition = filePos - 1;
             filesManager[filePos - 1].numbSamples = samples;
-            printf("READ %u SAMPLES TO x AND TO y!\n", samples);
 
             if (fclose (f) == EOF){ 
                 perror ("error on closing file");
@@ -127,7 +119,6 @@ int main (int argc, char *argv[]){
             while (aux < samples){ 
                 workProc = 1;
                 for (int i = 1; i < nProc && aux < samples; i++, workProc++, aux++){
-                    //printf("SENDING DATA TO WORKER %i\n", i);
                     whatToDo = WORKTODO;
                     MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
                     MPI_Send (&samples, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
@@ -140,7 +131,6 @@ int main (int argc, char *argv[]){
                 for (int i = 1; i < workProc; i++) {
                     MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     savePartialResults(&ci);
-                    //printf("RECEIVING RESULTS FROM WORKER %i\n", i);
                 }
             }
         }
@@ -155,9 +145,7 @@ int main (int argc, char *argv[]){
 
         while (true) {
 
-            //printf("RECEIVING INFORMATION\n");
             MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            //printf("PROCESS %d RECEIVED whatToDo: %d\n", rank, whatToDo);
             if (whatToDo == NOMOREWORK)
                 break;
             MPI_Recv (&size_signal, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -166,15 +154,11 @@ int main (int argc, char *argv[]){
                 y = (double *) malloc(sizeof(double) * size_signal);
                 t = size_signal;
             }
-            //printf("MALLOC OF %d DOUBLES\n", size_signal);
             MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv (x, size_signal, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv (y, size_signal, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            //printf("TRY TO CALCULATE circularCrossCorrelation\n");
             circularCrossCorrelation(x, y, &ci);
-            //printf("CALCULATED circularCrossCorrelation\n");
             MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
-            //printf("PROCESS %d SENT RESULTS\n", rank);
         }
     }
 
