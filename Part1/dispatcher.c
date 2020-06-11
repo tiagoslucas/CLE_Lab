@@ -261,7 +261,7 @@ static void printResults(unsigned int numbFiles, char *filesToProcess[]){
     printf(" ");
     for (y = 0; y < max_len; y++){
       Words[y] = 0;
-      printf("%*d\t", ALIGNMENT, y+1);
+      printf("%*ld\t", ALIGNMENT, y+1);
       for (x = 0; x <= max_len; x++)
         Words[y] += results[i].bidi[x][y];
     }
@@ -280,12 +280,12 @@ static void printResults(unsigned int numbFiles, char *filesToProcess[]){
     printf("\n\n");
     
     for (x = 0; x < max_len + 1; x++){
-    printf("%i",x);
+    printf("%ld",x);
       for (y = 0; y < max_len; y++){
         if(x > y+1)
           printf("\t");
         else if (Words[y] == 0)
-          printf("%*.1f\t", ALIGNMENT, 0);
+          printf("%*.1d\t", ALIGNMENT, 0);
         else
           printf("%*.1f\t", ALIGNMENT, (double) results[i].bidi[x][y]/Words[y]*100);
           

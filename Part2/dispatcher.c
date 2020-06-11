@@ -1,11 +1,9 @@
 /**
  *  \file dispatcher.c (implementation file)
  *
- *  \brief 
+ *  \brief Problem name: Problem 2.
  *
- *  
- *
- *  \author 
+ *  \author Francisco Gonçalves and Tiago Lucas - June 2020
  */
 
 #include <stdio.h>
@@ -135,6 +133,10 @@ int main (int argc, char *argv[]){
             }
         }
 
+        free(x);
+        free(y);
+        free(real);
+
         /* dismiss worker processes */
         whatToDo = NOMOREWORK;
         for (int i = 1; i < nProc; i++)
@@ -160,6 +162,8 @@ int main (int argc, char *argv[]){
             circularCrossCorrelation(x, y, &ci);
             MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
         }
+        free(x);
+        free(y);
     }
 
     MPI_Barrier (MPI_COMM_WORLD);
@@ -219,7 +223,7 @@ static void printResults(unsigned int numbFiles, char** filesToProcess){
 /**
  *  \brief Get a value from the data transfer region and save it in result data storage.
  *
- *  Operation carried out by the workers.
+ *  Operation carried out by the dispatcher.
  *
  *  \param *ci pointer to the shared data structure
  *
