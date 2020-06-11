@@ -26,7 +26,7 @@
 /* Allusion to internal functions */
 static void circularCrossCorrelation(double*, double*, CONTROLINFO*);
 static void savePartialResults(CONTROLINFO*);
-static void printResults();
+static void printResults(unsigned int, char**);
 
 /* Globlal variables */
 FILEINFO* filesManager;
@@ -38,7 +38,7 @@ unsigned int numbFiles;
  *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
  */
 int main (int argc, char *argv[]){
-    int nProc, rank;
+    int nProc, rank, whatToDo;
     double start, finish;
     numbFiles = argc - 1;
     CONTROLINFO ci = {0};
@@ -58,8 +58,9 @@ int main (int argc, char *argv[]){
     if (rank == 0) {
 
         FILE *f;
-        filesManager = (FILEINFO*)malloc(sizeof(FILEINFO)*numbFiles);
-        unsigned int whatToDo, workProc, aux, samples, filePos = 1;
+        filesManager = (FILEINFO*) calloc(numbFiles, sizeof(FILEINFO));
+        unsigned int workProc, aux, samples;
+        int filePos = 1;
         double* real;
 
         if(argc < 2) {
@@ -87,24 +88,29 @@ int main (int argc, char *argv[]){
             printf("READ FILE\n");
             fread(&samples, sizeof(int), 1, f);
             printf("ALLOCATION %u SAMPLES FOR x AND y\n", samples);
-            x = (double *) malloc(sizeof(double) * samples);
-            y = (double *) malloc(sizeof(double) * samples);
-            real = (double *) malloc(sizeof(double) * samples);
-
+            if (filePos == 1) {
+                x = (double *) malloc(sizeof(double) * samples);
+                y = (double *) malloc(sizeof(double) * samples);
+                real = (double *) malloc(sizeof(double) * samples);
+            } else {
+                x = (double *) realloc(x, sizeof(double) * samples);
+                y = (double *) realloc(y, sizeof(double) * samples);
+                real = (double *) realloc(real, sizeof(double) * samples);
+            }
             ci.numbSamples = samples;
             ci.filePosition = filePos - 1;
 
             fread(x, sizeof(double), samples, f);
             fread(y, sizeof(double), samples, f);
             fread(real, sizeof(double), samples, f);
-            filesManager[filePos].expected = (double*)malloc(sizeof(double) * samples);
-            filesManager[filePos].result = (double*)malloc(sizeof(double) * samples);
-            memcpy(filesManager[filePos].expected, real, samples*sizeof(double));
-            filesManager[filePos].rxyIndex = 0;
-            filesManager[filePos].filePosition = filePos - 1;
-            filesManager[filePos].numbSamples = samples;
-            //for (size_t t = 0; t < samples; t++)
-                //filesManager[filePos].expected[t] = real[t];
+            filesManager[filePos - 1].result = (double *) malloc(sizeof(double) * samples);
+            filesManager[filePos - 1].expected = (double *) malloc(sizeof(double) * samples);
+            //memcpy(filesManager[filePos].expected, real, sizeof(double) * samples);
+            /*for (size_t t = 0; t < samples; t++)
+                filesManager[filePos].expected[t] = real[t]; */
+            filesManager[filePos - 1].rxyIndex = 0;
+            filesManager[filePos - 1].filePosition = filePos - 1;
+            filesManager[filePos - 1].numbSamples = samples;
             printf("READ %u SAMPLES TO x AND TO y!\n", samples);
 
             if (fclose (f) == EOF){ 
@@ -115,56 +121,60 @@ int main (int argc, char *argv[]){
                 MPI_Finalize ();
                 exit (EXIT_FAILURE);
             }
+
             filePos++;
             aux = 0;
-            printf("ENTERING THE WHILE\n");
             while (aux < samples){ 
                 workProc = 1;
                 for (int i = 1; i < nProc && aux < samples; i++, workProc++, aux++){
-                    printf("SENDING DATA TO WORKER %i\n", i);
+                    //printf("SENDING DATA TO WORKER %i\n", i);
                     whatToDo = WORKTODO;
                     MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
-                    MPI_Send (&samples, sizeof(unsigned int), MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+                    MPI_Send (&samples, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
                     ci.rxyIndex = aux;
                     MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, i, 0, MPI_COMM_WORLD);
                     MPI_Send (x, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
                     MPI_Send (y, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-                    printf("SENT DATA TO WORKER %i\n", i);
                 }
 
                 for (int i = 1; i < workProc; i++) {
                     MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     savePartialResults(&ci);
+                    //printf("RECEIVING RESULTS FROM WORKER %i\n", i);
                 }
-            }        
+            }
         }
 
         /* dismiss worker processes */
         whatToDo = NOMOREWORK;
         for (int i = 1; i < nProc; i++)
-        MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+            MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
 
     } else { /* worker processes */
-        unsigned int whatToDo, size_signal;
+        unsigned int size_signal, t = 0;
 
         while (true) {
-            printf("RECEIVING INFORMATION\n");
+
+            //printf("RECEIVING INFORMATION\n");
             MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            printf("PROCESS %d RECEIVED whatToDo: %d\n", rank, whatToDo);
+            //printf("PROCESS %d RECEIVED whatToDo: %d\n", rank, whatToDo);
             if (whatToDo == NOMOREWORK)
                 break;
-            MPI_Recv (&size_signal, sizeof (unsigned int), MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            x = (double *) malloc(sizeof(double) * size_signal);
-            y = (double *) malloc(sizeof(double) * size_signal);
-            printf("MALLOC OF %d DOUBLES\n", size_signal);
+            MPI_Recv (&size_signal, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            if (size_signal > t) {
+                x = (double *) malloc(sizeof(double) * size_signal);
+                y = (double *) malloc(sizeof(double) * size_signal);
+                t = size_signal;
+            }
+            //printf("MALLOC OF %d DOUBLES\n", size_signal);
             MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv (x, size_signal, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv (y, size_signal, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            printf("TRY TO CALCULATE circularCrossCorrelation\n");
+            //printf("TRY TO CALCULATE circularCrossCorrelation\n");
             circularCrossCorrelation(x, y, &ci);
-            printf("CALCULATED circularCrossCorrelation\n");
+            //printf("CALCULATED circularCrossCorrelation\n");
             MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
-            printf("PROCESS %d SENT RESULTS\n", rank);
+            //printf("PROCESS %d SENT RESULTS\n", rank);
         }
     }
 
