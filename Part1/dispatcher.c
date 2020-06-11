@@ -89,14 +89,14 @@ int main (int argc, char *argv[]){
       MPI_Finalize ();
       return EXIT_FAILURE;
     }
-    while(filePos <= numbFiles){
+    while(filePos <= numbFiles) {
       workProc = 1;
       for (x = 1; x < totProc; x++, workProc++){
-        
         if(filePos > numbFiles){
           break;
         }
-          
+
+        printf("PASSEI NO FICHEIRO text%ld.txt\n", filePos - 1);
         if(f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
             perror ("error on file opening for reading");
@@ -106,14 +106,15 @@ int main (int argc, char *argv[]){
             MPI_Finalize ();
             exit (EXIT_FAILURE);
           }
+          ci.filePosition = filePos - 1;
+          ci.numbBytes = 0;
+          ci.numbWords = 0;
+          ci.maxWordLength = 0;
         }
 
-        ci.filePosition = filePos - 1;
         i = fread(dataToBeProcessed, 1, K, f);
 
         if(i < K) {
-          filePos++;
-      
           if (fclose (f) == EOF){ 
             perror ("error on closing file");
             whatToDo = NOMOREWORK;
@@ -123,6 +124,7 @@ int main (int argc, char *argv[]){
             exit (EXIT_FAILURE);
           }
 
+          filePos++;
           f = NULL;
 
         } else {
@@ -132,7 +134,7 @@ int main (int argc, char *argv[]){
           }
           if(i == 0)
             i = aux;
-          fseek(f, i-K,SEEK_CUR);
+          fseek(f, i-K, SEEK_CUR);
         }
         ci.numbBytes = i;
      
@@ -148,7 +150,7 @@ int main (int argc, char *argv[]){
         MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
       }
-      
+
     }
     
     /* dismiss worker processes */
@@ -202,17 +204,18 @@ void savePartialResults(CONTROLINFO *ci){
   size_t filePosition = ci->filePosition;
   results[filePosition].numbBytes += ci->numbBytes;
   results[filePosition].numbWords += ci->numbWords;
-  results[filePosition].maxWordLength = ci->maxWordLength;
-  maxWordLEN[filePosition] = ci->maxWordLength;
   ci->numbWords = 0;
+  if (ci->maxWordLength > results[filePosition].maxWordLength) {
+    results[filePosition].maxWordLength = ci->maxWordLength;
+    maxWordLEN[filePosition] = ci->maxWordLength;
+  }
 
   for (size_t i = 0; i < ci->maxWordLength+1; i++){
     for (size_t j = 0; j < ci->maxWordLength; j++){
-          results[filePosition].bidi[i][j] += ci->bidi[i][j];
-          ci->bidi[i][j] = 0;
+      results[filePosition].bidi[i][j] += ci->bidi[i][j];
+      ci->bidi[i][j] = 0;
     }
   }
-
 }
 
 /**
