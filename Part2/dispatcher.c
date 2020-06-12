@@ -17,7 +17,6 @@
 #include <errno.h>
 #include <mpi.h>
 
-#include "probConst.h"
 #include "FILEINFO.h"
 #include "CONTROLINFO.h"
 
@@ -29,6 +28,10 @@ static void printResults(unsigned int, char**);
 /* Globlal variables */
 FILEINFO* filesManager;
 unsigned int numbFiles;
+
+/* \brief Working state definitions */
+# define  WORKTODO       1
+# define  NOMOREWORK     0
 
 /**
  *  \brief Main thread.
@@ -57,7 +60,6 @@ int main (int argc, char *argv[]){
         filesManager = (FILEINFO*) calloc(numbFiles, sizeof(FILEINFO));
         unsigned int workProc, aux, samples;
         int filePos = 1;
-        double* real;
 
         if(argc < 2) {
             perror("Please insert binary files to be processed as arguments!");
@@ -84,21 +86,18 @@ int main (int argc, char *argv[]){
             if (filePos == 1) {
                 x = (double *) malloc(sizeof(double) * samples);
                 y = (double *) malloc(sizeof(double) * samples);
-                real = (double *) malloc(sizeof(double) * samples);
             } else {
                 x = (double *) realloc(x, sizeof(double) * samples);
                 y = (double *) realloc(y, sizeof(double) * samples);
-                real = (double *) realloc(real, sizeof(double) * samples);
             }
             ci.numbSamples = samples;
             ci.filePosition = filePos - 1;
 
             fread(x, sizeof(double), samples, f);
             fread(y, sizeof(double), samples, f);
-            fread(real, sizeof(double), samples, f);
             filesManager[filePos - 1].result = (double *) malloc(sizeof(double) * samples);
             filesManager[filePos - 1].expected = (double *) malloc(sizeof(double) * samples);
-            memcpy(filesManager[filePos - 1].expected, real, sizeof(double) * samples);
+            fread(filesManager[filePos - 1].expected, sizeof(double), samples, f);
             filesManager[filePos - 1].rxyIndex = 0;
             filesManager[filePos - 1].filePosition = filePos - 1;
             filesManager[filePos - 1].numbSamples = samples;
@@ -133,10 +132,6 @@ int main (int argc, char *argv[]){
             }
         }
 
-        free(x);
-        free(y);
-        free(real);
-
         /* dismiss worker processes */
         whatToDo = NOMOREWORK;
         for (int i = 1; i < nProc; i++)
@@ -152,8 +147,13 @@ int main (int argc, char *argv[]){
                 break;
             MPI_Recv (&size_signal, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             if (size_signal > t) {
-                x = (double *) malloc(sizeof(double) * size_signal);
-                y = (double *) malloc(sizeof(double) * size_signal);
+                if (t == 0) {
+                    x = (double *) malloc(sizeof(double) * size_signal);
+                    y = (double *) malloc(sizeof(double) * size_signal);
+                } else {
+                    x = (double *) realloc(x, sizeof(double) * size_signal);
+                    y = (double *) realloc(y, sizeof(double) * size_signal);
+                }
                 t = size_signal;
             }
             MPI_Recv (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -162,9 +162,10 @@ int main (int argc, char *argv[]){
             circularCrossCorrelation(x, y, &ci);
             MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, 0, 0, MPI_COMM_WORLD);
         }
-        free(x);
-        free(y);
     }
+
+    free(x);
+    free(y);
 
     MPI_Barrier (MPI_COMM_WORLD);
     if (rank == 0) {
@@ -215,6 +216,10 @@ static void printResults(unsigned int numbFiles, char** filesToProcess){
       printf("File %s was calculated correctly.\n", filesToProcess[i]);
     else 
       printf("File %s had %lu errors in total.\n", filesToProcess[i], numbErrors);
+
+
+    free(filesManager[i].result);
+    free(filesManager[i].expected);
   }
   
   free(filesManager);

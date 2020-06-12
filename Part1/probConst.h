@@ -13,14 +13,8 @@
 
 /* Generic parameters */
 
-/** \brief number of worker Threads */
-#define  NUMB_THREADS       2
-
 /** \brief number of bytes to be processed each iteration */
 #define  K                  1024
-
-/** \brief max number of files that can be processed */
-#define  MAX_FILES          50
 
 /** \brief max size of word */
 #define  MAX_SIZE_WORD      50

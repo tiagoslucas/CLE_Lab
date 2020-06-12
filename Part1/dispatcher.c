@@ -5,7 +5,6 @@
  *
  *  \author Francisco Gonçalves and Tiago Lucas - June 2020
  */
-
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,12 +44,11 @@ static void processText(unsigned char*, CONTROLINFO*);
  *
  *  \return status of operation
  */
-
 int main (int argc, char *argv[]){
-  int rank,                                                              /* number of processes in the group */
-  totProc;                                                               /* group size */
-  double start, finish;
-  unsigned int numbFiles = argc - 1;                                     /* number of files to process*/
+  int rank,                                /* number of processes in the group */
+  totProc;                                 /* group size */
+  unsigned int numbFiles = argc - 1;       /* number of files to process*/
+  double start, finish;                    /* variables to calculate how much time the execution took */
 
   /* get processing configuration */
 
@@ -63,18 +61,14 @@ int main (int argc, char *argv[]){
 
   /* processing */
 
-  if (rank == 0){ 
-          /* dispatcher process
-           it is the first process of the group */
+  if (rank == 0){                          /* dispatcher process it is the first process of the group */
 
-    FILE *f;                               /* pointer to the text stream associated with the file name */
+    FILE *f = NULL;                        /* pointer to the text stream associated with the file name */
     unsigned int whatToDo;                 /* command */
-    unsigned int aux,                     /* counting variables */
-                 workProc,
-                 i,
-                 x;
-    CONTROLINFO ci = {0};                      /* data transfer variable */
-    unsigned char dataToBeProcessed[K+1];
+    unsigned int workProc, x;              /* counting variables */
+    size_t i, aux;
+    CONTROLINFO ci = {0};                  /* data transfer variable */
+    unsigned char dataToBeProcessed[K+1] = {0};
     size_t filePos = 1;
     results = (CONTROLINFO*) calloc(numbFiles, sizeof(CONTROLINFO));
     maxWordLEN = (int *) calloc(numbFiles, sizeof(int));
@@ -96,7 +90,6 @@ int main (int argc, char *argv[]){
           break;
         }
 
-        printf("PASSEI NO FICHEIRO text%ld.txt\n", filePos - 1);
         if(f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
             perror ("error on file opening for reading");
@@ -113,9 +106,8 @@ int main (int argc, char *argv[]){
         }
 
         i = fread(dataToBeProcessed, 1, K, f);
-
         if(i < K) {
-          if (fclose (f) == EOF){ 
+          if (fclose (f) == EOF){
             perror ("error on closing file");
             whatToDo = NOMOREWORK;
             for (x = 1; x < totProc; x++)
@@ -134,7 +126,7 @@ int main (int argc, char *argv[]){
           }
           if(i == 0)
             i = aux;
-          fseek(f, i-K, SEEK_CUR);
+          fseek(f, i-K, 1);
         }
         ci.numbBytes = i;
      
@@ -142,7 +134,7 @@ int main (int argc, char *argv[]){
         whatToDo = WORKTODO;
         MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
         MPI_Send (&ci, sizeof (CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD);
-        MPI_Send (dataToBeProcessed, K+1, MPI_CHAR, x, 0, MPI_COMM_WORLD);
+        MPI_Send (&dataToBeProcessed, K+1, MPI_UNSIGNED_CHAR, x, 0, MPI_COMM_WORLD);
         memset(dataToBeProcessed, 0, K+1);
       }
 
@@ -154,18 +146,17 @@ int main (int argc, char *argv[]){
     }
     
     /* dismiss worker processes */
-
+    
     whatToDo = NOMOREWORK;
     for (x = 1; x < totProc; x++)
       MPI_Send (&whatToDo, 1, MPI_UNSIGNED, x, 0, MPI_COMM_WORLD);
     
 
-  } else { 
-    /* worker processes
-    the remainder processes of the group */
-    unsigned int whatToDo;                                                   /* command */
-    CONTROLINFO ci;                                                          /* data transfer variable */
-    unsigned char dataToBeProcessed[K+1];                                    /* text to process */
+  } else { /* worker processes the remainder processes of the group */
+
+    unsigned int whatToDo;                /* command */
+    CONTROLINFO ci;                       /* data transfer variable */
+    unsigned char dataToBeProcessed[K+1]; /* text to process */
 
     while (true){
       MPI_Recv (&whatToDo, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -225,7 +216,7 @@ void savePartialResults(CONTROLINFO *ci){
  *
  * \param character   character to which the validation is done.
  *
- * \return        0 if the character provided is not a stop character, otherwise is the number of bytes the character should have. Can be used as true/false.
+ * \return    0 if the character provided is not a stop character, otherwise is the number of bytes the character should have. Can be used as true/false.
  *
  */
 static int isValidStopCharacter(char character) {
@@ -248,7 +239,6 @@ static int isValidStopCharacter(char character) {
  *  Operation carried out by dispatcher process.
  *
  */
-
 static void printResults(unsigned int numbFiles, char *filesToProcess[]){
 
   size_t x, y, i, max_len;
@@ -309,7 +299,6 @@ static void printResults(unsigned int numbFiles, char *filesToProcess[]){
  *  \param dataToBeProcessed chunk of text data being processed
  *  \param ci structure where calculated statistics are saved
  */
-
 static void processText(unsigned char *dataToBeProcessed, CONTROLINFO *ci) {
     char cha;
     bool inWord = false;
