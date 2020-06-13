@@ -25,7 +25,7 @@
 /** \brief results of processed text */
 CONTROLINFO *results;
 
-/** \brief byte pointer inside file */
+/** \brief max word length for each file */
 int *maxWordLEN;
 
 /* Allusion to internal functions */
@@ -66,10 +66,10 @@ int main (int argc, char *argv[]){
     FILE *f = NULL;                        /* pointer to the text stream associated with the file name */
     unsigned int whatToDo;                 /* command */
     unsigned int workProc, x;              /* counting variables */
-    size_t i, aux;
+    size_t i, aux;                          /* auxiliary variables*/
     CONTROLINFO ci = {0};                  /* data transfer variable */
-    unsigned char dataToBeProcessed[K+1] = {0};
-    size_t filePos = 1;
+    unsigned char dataToBeProcessed[K+1] = {0}; /* text to process */
+    size_t filePos = 1;                         /* current file being processed*/
     results = (CONTROLINFO*) calloc(numbFiles, sizeof(CONTROLINFO));
     maxWordLEN = (int *) calloc(numbFiles, sizeof(int));
 
@@ -83,13 +83,19 @@ int main (int argc, char *argv[]){
       MPI_Finalize ();
       return EXIT_FAILURE;
     }
+    
+    /* loop until all files have been processed*/
     while(filePos <= numbFiles) {
+      
       workProc = 1;
+      
+      /* send text to process to all workers */
       for (x = 1; x < totProc; x++, workProc++){
         if(filePos > numbFiles){
           break;
         }
 
+        /* open file if necessary */
         if(f == NULL) {
           if((f = fopen (argv[filePos], "rb")) == NULL){
             perror ("error on file opening for reading");
@@ -107,6 +113,7 @@ int main (int argc, char *argv[]){
 
         i = fread(dataToBeProcessed, 1, K, f);
         if(i < K) {
+          /* close file */
           if (fclose (f) == EOF){
             perror ("error on closing file");
             whatToDo = NOMOREWORK;
@@ -137,7 +144,8 @@ int main (int argc, char *argv[]){
         MPI_Send (&dataToBeProcessed, K+1, MPI_UNSIGNED_CHAR, x, 0, MPI_COMM_WORLD);
         memset(dataToBeProcessed, 0, K+1);
       }
-
+      
+      /* receive results of processing from workers*/
       for (x = 1; x < workProc; x++) {
         MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_BYTE, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         savePartialResults(&ci);
@@ -169,6 +177,7 @@ int main (int argc, char *argv[]){
     }
   }
 
+  /* print results and execution time */
   MPI_Barrier (MPI_COMM_WORLD);
   if(rank == 0) {
     printResults(numbFiles, argv+1);
@@ -182,13 +191,12 @@ int main (int argc, char *argv[]){
 
 
 /**
- *  \brief Get a value from the data transfer region.
+ *  \brief Save partial results received from worker
  *
- *  Operation carried out by the main thread.
+ *  Operation carried out by dispatcher process.
  *
  *  \param *ci    pointer to the shared data structure
  *
- *  \return value
  */
 void savePartialResults(CONTROLINFO *ci){                                                                          
 
@@ -236,7 +244,7 @@ static int isValidStopCharacter(char character) {
 /**
  *  \brief Print the results of each file.
  *
- *  Operation carried out by dispatcher process.
+ *  Operation carried out by dispatcher process at the end of processing.
  *
  */
 static void printResults(unsigned int numbFiles, char *filesToProcess[]){

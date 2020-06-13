@@ -26,7 +26,10 @@ static void savePartialResults(CONTROLINFO*);
 static void printResults(unsigned int, char**);
 
 /* Globlal variables */
+/* contains the results of processing for each file*/
 FILEINFO* filesManager;
+
+/*numb of files to process*/
 unsigned int numbFiles;
 
 /* \brief Working state definitions */
@@ -34,17 +37,24 @@ unsigned int numbFiles;
 # define  NOMOREWORK     0
 
 /**
- *  \brief Main thread.
+ *  \brief Main function.
  *
- *  Its role is starting the simulation by generating the worker threads and waiting for their termination.
+ *  Instantiation of the processing configuration.
+ *
+ *  \param argc number of words of the command line
+ *  \param argv list of words of the command line
+ *
+ *  \return status of operation
  */
 int main (int argc, char *argv[]){
-    int nProc, rank, whatToDo;
-    double start, finish;
+    int nProc,                              /* group size */
+    rank,                                   /* number of processes in the group */
+    whatToDo;                               /* command */
+    double start, finish;                      /* variables to calculate how much time the execution took */
     numbFiles = argc - 1;
-    CONTROLINFO ci = {0};
-    double* x;
-    double* y;
+    CONTROLINFO ci = {0};                      /* data transfer variable */
+    double* x;                                  /* first signal */
+    double* y;                                  /* second signal */
 
     /* get processing configuration */
     MPI_Init (&argc, &argv);
@@ -54,13 +64,17 @@ int main (int argc, char *argv[]){
     MPI_Barrier (MPI_COMM_WORLD);
     start = MPI_Wtime();
 
-    if (rank == 0) {
+    if (rank == 0) {                     /* dispatcher process it is the first process of the group */
 
-        FILE *f;
+        FILE *f;                                                            /* pointer to the text stream associated with the file name */
         filesManager = (FILEINFO*) calloc(numbFiles, sizeof(FILEINFO));
-        unsigned int workProc, aux, samples;
+        unsigned int workProc,                                              /* counting variable */
+        aux,                                                                /* auxiliary variable */
+        samples;                                                            /* size of signals */
         int filePos = 1;
 
+        /* check running parameters and load list of names into memory */
+        
         if(argc < 2) {
             perror("Please insert binary files to be processed as arguments!");
             whatToDo = NOMOREWORK;
@@ -73,6 +87,7 @@ int main (int argc, char *argv[]){
         /* processing the circular cross correlation between two signals */
         while (filePos <= numbFiles) {
             
+            /* read file, i.e. both signals and result */
             if((f = fopen (argv[filePos], "rb")) == NULL){
                 perror ("error on file opening for reading");
                 whatToDo = NOMOREWORK;
@@ -102,6 +117,7 @@ int main (int argc, char *argv[]){
             filesManager[filePos - 1].filePosition = filePos - 1;
             filesManager[filePos - 1].numbSamples = samples;
 
+            /* close file */
             if (fclose (f) == EOF){ 
                 perror ("error on closing file");
                 whatToDo = NOMOREWORK;
@@ -113,8 +129,12 @@ int main (int argc, char *argv[]){
 
             filePos++;
             aux = 0;
+            
+            /* loop until all positions of result array (circular cross correlation) have been calculated */
             while (aux < samples){ 
                 workProc = 1;
+                
+                /* distribute sorting task */
                 for (int i = 1; i < nProc && aux < samples; i++, workProc++, aux++){
                     whatToDo = WORKTODO;
                     MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
@@ -125,6 +145,7 @@ int main (int argc, char *argv[]){
                     MPI_Send (y, samples, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
                 }
 
+                /* receive results of processing from workers*/
                 for (int i = 1; i < workProc; i++) {
                     MPI_Recv (&ci, sizeof(CONTROLINFO), MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     savePartialResults(&ci);
@@ -137,8 +158,9 @@ int main (int argc, char *argv[]){
         for (int i = 1; i < nProc; i++)
             MPI_Send (&whatToDo, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
 
-    } else { /* worker processes */
-        unsigned int size_signal, t = 0;
+    } else {                                            /* worker processes */
+        unsigned int size_signal,                       /* size of signals to process */
+        t = 0;                                          /* auxiliary variable */
 
         while (true) {
 
@@ -167,6 +189,7 @@ int main (int argc, char *argv[]){
     free(x);
     free(y);
 
+    /* print results and execution time */
     MPI_Barrier (MPI_COMM_WORLD);
     if (rank == 0) {
         printf("\nFinal report\n");
@@ -179,7 +202,7 @@ int main (int argc, char *argv[]){
 }
 
 /**
- *  \brief Perform the comparison between two sets of signals
+ *  \brief Calculate circular cross correlation for two signals
  *
  *  Operation carried out by the workers.
  *
@@ -226,7 +249,7 @@ static void printResults(unsigned int numbFiles, char** filesToProcess){
 }
 
 /**
- *  \brief Get a value from the data transfer region and save it in result data storage.
+ *  \brief Save partial results received from worker
  *
  *  Operation carried out by the dispatcher.
  *
